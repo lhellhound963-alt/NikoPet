@@ -20,6 +20,23 @@ public class RenderNiko extends RenderBiped {
         return TEX;
     }
 
+    private static boolean holdsGun(EntityLivingBase e) {
+        return GunHelper.isGun(e.getEquipmentInSlot(0));
+    }
+
+    @Override
+    protected void renderModel(EntityLivingBase e, float a, float b, float c, float d, float f, float g) {
+        if (mainModel instanceof ModelBiped) ((ModelBiped) mainModel).aimedBow = holdsGun(e);
+        super.renderModel(e, a, b, c, d, f, g);
+    }
+
+    @Override
+    protected int shouldRenderPass(EntityLivingBase e, int pass, float pt) {
+        int r = super.shouldRenderPass(e, pass, pt);
+        if (renderPassModel instanceof ModelBiped) ((ModelBiped) renderPassModel).aimedBow = holdsGun(e);
+        return r;
+    }
+
     @Override
     protected void rotateCorpse(EntityLivingBase e, float a, float b, float c) {
         super.rotateCorpse(e, a, b, c);

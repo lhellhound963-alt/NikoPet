@@ -33,6 +33,7 @@ public class EntityNiko extends EntityTameable {
     public final List<int[]> points = new ArrayList<int[]>();
     public final List<String> findings = new ArrayList<String>();
     public int patrolIndex;
+    private int lastRbmkWarn = -10000;
     public boolean patrolling;
     private int lx, ly, lz;
     private boolean lit;
@@ -93,6 +94,18 @@ public class EntityNiko extends EntityTameable {
         }
     }
 
+    /** Background watch: warn the owner if an RBMK column nearby gets too hot. */
+    private void monitorReactor() {
+        if (!RbmkHelper.ready() || ticksExisted - lastRbmkWarn < 600) return;
+        RbmkHelper.Result r = RbmkHelper.scan(worldObj, MathHelper.floor_double(posX), MathHelper.floor_double(posY),
+                MathHelper.floor_double(posZ), 32, 24, 32);
+        if (r != null && r.columns > 0 && r.worstRatio >= 0.85D) {
+            lastRbmkWarn = ticksExisted;
+            tell("WARNING! RBMK column at " + r.wx + "," + r.wy + "," + r.wz + " is at "
+                    + Math.round(r.worstRatio * 100.0D) + "% of max heat. Right-click me with redstone dust for AZ-5.");
+        }
+    }
+
     public String inspect(int[] p, boolean reached) {
         int hbm = 0, furn = 0, burn = 0, other = 0;
         for (Object o : worldObj.loadedTileEntityList) {
@@ -105,9 +118,11 @@ public class EntityNiko extends EntityTameable {
             } else other++;
         }
         int light = worldObj.getBlockLightValue(p[0], p[1], p[2]);
+        RbmkHelper.Result rb = RbmkHelper.scan(worldObj, p[0], p[1], p[2], 8, 16, 8);
+        String reactor = (rb != null && rb.columns > 0) ? " | " + RbmkHelper.describe(rb) : "";
         return "Room " + (patrolIndex + 1) + (reached ? "" : " (could not reach)") + ": HBM machines " + hbm
                 + ", furnaces " + furn + " (" + burn + " burning), other tile blocks " + other
-                + ", light " + light + (light < 7 ? " - DARK" : "");
+                + ", light " + light + (light < 7 ? " - DARK" : "") + reactor;
     }
 
     @Override
@@ -154,6 +169,16 @@ public class EntityNiko extends EntityTameable {
             }
             if (s != null && s.getItem() == Items.clock && !p.isSneaking()) {
                 if (!worldObj.isRemote) startPatrol(p);
+                return true;
+            }
+            if (s != null && s.getItem() == Items.redstone && !p.isSneaking()) {
+                if (!worldObj.isRemote) {
+                    int n = RbmkHelper.scram(worldObj, MathHelper.floor_double(posX), MathHelper.floor_double(posY),
+                            MathHelper.floor_double(posZ), 32, 24, 32);
+                    tell(n < 0 ? "AZ-5 failed: " + RbmkHelper.lastError
+                            : n == 0 ? "No RBMK control rods within 32 blocks."
+                            : "AZ-5! Inserting " + n + " control rods.");
+                }
                 return true;
             }
             if (s != null && s.getItem() == Items.stick && !p.isSneaking()) {
@@ -268,6 +293,7 @@ public class EntityNiko extends EntityTameable {
                 if (s != getEquipmentInSlot(i)) setCurrentItemOrArmor(i, s);
             }
             updateLight();
+            if (ticksExisted % 100 == 0 && isTamed() && !patrolling) monitorReactor();
             ItemStack gun = getEquipmentInSlot(0);
             if (gun != null && GunHelper.isGun(gun)) GunHelper.tick(this, gun);
         }

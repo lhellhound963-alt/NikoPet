@@ -46,6 +46,7 @@ public class EntityAIShootGun extends EntityAIBase {
         if (!see || d2 > 196.0D) n.getNavigator().tryMoveToEntityLiving(tg, 1.0D);
         else n.getNavigator().clearPathEntity();
 
+        aimAt(tg);
         timer--;
         int amt = GunHelper.ammo(n, g);
         if (amt == 0 && mode < 2) { mode = 2; reloadTicks = 0; }
@@ -67,6 +68,19 @@ public class EntityAIShootGun extends EntityAIBase {
             else GunHelper.setKeys(n, g, true, false);
         }
         if (++logTimer % 100 == 0) FMLLog.info("[NikoPet] shoot: mode=%s ammo=%s dist=%.1f see=%s err=%s", String.valueOf(mode), String.valueOf(amt), Math.sqrt(d2), String.valueOf(see), GunHelper.lastError);
+    }
+
+    /** Point the body and gun exactly at the target's center (small random spread). */
+    private void aimAt(EntityLivingBase tg) {
+        double dx = tg.posX - n.posX, dz = tg.posZ - n.posZ;
+        double dy = (tg.posY + tg.height * 0.5D) - (n.posY + n.getEyeHeight());
+        double flat = Math.sqrt(dx * dx + dz * dz);
+        float yaw = (float) (Math.atan2(dz, dx) * 180.0D / Math.PI) - 90.0F + (n.getRNG().nextFloat() - 0.5F) * 3.0F;
+        float pitch = (float) -(Math.atan2(dy, flat) * 180.0D / Math.PI) + (n.getRNG().nextFloat() - 0.5F) * 3.0F;
+        n.rotationYaw = yaw;
+        n.rotationYawHead = yaw;
+        n.renderYawOffset = yaw;
+        n.rotationPitch = pitch;
     }
 
     @Override
