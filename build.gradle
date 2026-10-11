@@ -1,16 +1,51 @@
 buildscript {
     repositories {
         mavenCentral()
-        maven { name = "forge"; url = "https://maven.minecraftforge.net/" }
-        maven { name = "sonatype"; url = "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven {
+            name = "forge"
+            url = "https://maven.minecraftforge.net/"
+        }
+        maven {
+            name = "gt"
+            url = "https://gregtech.overminddl1.com/"
+        }
     }
-    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT' }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
+    }
 }
+
 apply plugin: 'forge'
-version = "0.1"
-group = "com.nikopet"
+
+version = "1.0"
+group= "com.yourname.nikopet"
 archivesBaseName = "NikoPet"
+
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
     runDir = "eclipse"
+}
+
+repositories {
+    maven {
+        name = "gt"
+        url = "https://gregtech.overminddl1.com/"
+    }
+}
+
+dependencies {
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "mcversion", project.minecraft.version
+
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version':project.version, 'mcversion':project.minecraft.version
+    }
+        
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
 }

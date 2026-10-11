@@ -24,11 +24,5 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gradle
 
-      - name: Build Mod
-        run: gradle setupCIWorkspace build --stacktrace
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NikoPet-jar
-          path: build/libs/*.jar
+      - name: Build Mod with Legacy Fixes
+        run: gradle build --stacktrace -Dhttp.nonProxyHosts=localhost\|127.0.0.1
