@@ -1,11 +1,17 @@
 buildscript {
     repositories {
         mavenCentral()
-        maven { url 'https://jitpack.io' }
-        maven { url 'https://maven.minecraftforge.net/' }
+        maven {
+            name = "forge"
+            url = "https://maven.minecraftforge.net/"
+        }
+        maven {
+            name = "sonatype"
+            url = "https://oss.sonatype.org/content/repositories/public/"
+        }
     }
     dependencies {
-        classpath 'com.github.asbyth:ForgeGradle:1.2-SNAPSHOT'
+        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
     }
 }
 
@@ -18,6 +24,28 @@ archivesBaseName = "NikoPet"
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
     runDir = "eclipse"
+}
+
+// ใช้ Reflection ค้นหาและเปลี่ยน URL ในคลาสแม่ของ DownloadTask
+tasks.withType(net.minecraftforge.gradle.tasks.abstractutil.DownloadTask).all { task ->
+    def clazz = task.class
+    while (clazz != null) {
+        try {
+            def field = clazz.getDeclaredField("url")
+            field.accessible = true
+            if (task.name == 'downloadClient') {
+                field.set(task, 'https://launcher.mojang.com/v1/objects/c4f2ebd9a36592206ae853aaa43f726621c1724b/client.jar')
+                println "Successfully redirected downloadClient URL!"
+                break
+            } else if (task.name == 'downloadServer') {
+                field.set(task, 'https://launcher.mojang.com/v1/objects/952438ac4e01b4d115c5fc38f891710c4941df29/server.jar')
+                println "Successfully redirected downloadServer URL!"
+                break
+            }
+        } catch (NoSuchFieldException e) {
+            clazz = clazz.superclass
+        }
+    }
 }
 
 dependencies {
