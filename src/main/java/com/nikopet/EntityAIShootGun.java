@@ -5,10 +5,12 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.ai.EntityAIBase;
 import net.minecraft.item.ItemStack;
 
-/** Shoots the current attack target with an HBM gun held in Niko's hand slot. */
+/** Shoots the current attack target with an HBM gun held in Niko's hand slot (mimics HBM's own mob gun AI). */
 public class EntityAIShootGun extends EntityAIBase {
     private final EntityNiko n;
-    private int t;
+    private int mode; // 0 wait, 1 firing, 2 reloading, 3 out of ammo
+    private int timer, reloadTicks, logTimer;
+    private boolean warned;
 
     public EntityAIShootGun(EntityNiko n) {
         this.n = n;
@@ -26,7 +28,12 @@ public class EntityAIShootGun extends EntityAIBase {
     public boolean continueExecuting() { return shouldExecute(); }
 
     @Override
-    public void startExecuting() { t = 0; n.task = "shooting"; }
+    public void startExecuting() {
+        mode = 0; timer = 10; reloadTicks = 0; warned = false;
+        n.task = "shooting";
+        EntityLivingBase tg = n.getAttackTarget();
+        if (tg != null) n.tell("Target: " + tg.getCommandSenderName());
+    }
 
     @Override
     public void updateTask() {
@@ -35,29 +42,37 @@ public class EntityAIShootGun extends EntityAIBase {
         if (tg == null || g == null) return;
         n.getLookHelper().setLookPositionWithEntity(tg, 30.0F, 30.0F);
         boolean see = n.getEntitySenses().canSee(tg);
-        if (!see || n.getDistanceSqToEntity(tg) > 196.0D) n.getNavigator().tryMoveToEntityLiving(tg, 1.0D);
+        double d2 = n.getDistanceSqToEntity(tg);
+        if (!see || d2 > 196.0D) n.getNavigator().tryMoveToEntityLiving(tg, 1.0D);
         else n.getNavigator().clearPathEntity();
-        t++;
-        int c = t % 60;
-        if (see && c < 40) {
-            if (c % 8 == 0) GunHelper.key(n, g, false, true);
-            else if (c % 8 == 2) GunHelper.key(n, g, false, false);
-        } else if (c == 40) {
-            GunHelper.key(n, g, false, false);
-            GunHelper.key(n, g, true, true);
-        } else if (c == 42) {
-            GunHelper.key(n, g, true, false);
+
+        timer--;
+        int amt = GunHelper.ammo(n, g);
+        if (amt == 0 && mode < 2) { mode = 2; reloadTicks = 0; }
+        if (amt != 0 && mode >= 2) { mode = 0; timer = 10; warned = false; }
+
+        if (mode == 2) {
+            GunHelper.setKeys(n, g, false, true);
+            if (++reloadTicks > 120) {
+                mode = 3;
+                if (!warned) { n.tell("Out of ammo!"); warned = true; }
+            }
+        } else if (mode == 3) {
+            GunHelper.setKeys(n, g, false, false);
+        } else if (mode == 0) {
+            GunHelper.setKeys(n, g, false, false);
+            if (timer <= 0 && see && d2 < 20.0D * 20.0D) { mode = 1; timer = 15 + n.getRNG().nextInt(25); }
+        } else {
+            if (!see || timer <= 0) { mode = 0; timer = 10 + n.getRNG().nextInt(20); GunHelper.setKeys(n, g, false, false); }
+            else GunHelper.setKeys(n, g, true, false);
         }
-        if (c == 0) FMLLog.info("[NikoPet] shooting cycle, target=%s dist=%.1f see=%s", tg.getCommandSenderName(), n.getDistanceToEntity(tg), String.valueOf(see));
+        if (++logTimer % 100 == 0) FMLLog.info("[NikoPet] shoot: mode=%s ammo=%s dist=%.1f see=%s err=%s", String.valueOf(mode), String.valueOf(amt), Math.sqrt(d2), String.valueOf(see), GunHelper.lastError);
     }
 
     @Override
     public void resetTask() {
         ItemStack g = n.getEquipmentInSlot(0);
-        if (g != null && GunHelper.isGun(g)) {
-            GunHelper.key(n, g, false, false);
-            GunHelper.key(n, g, true, false);
-        }
+        if (g != null && GunHelper.isGun(g)) GunHelper.setKeys(n, g, false, false);
         n.task = "idle";
     }
 }

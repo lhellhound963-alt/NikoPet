@@ -4,6 +4,7 @@ import net.minecraft.block.Block;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.entity.EntityAgeable;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.ai.*;
 import net.minecraft.entity.monster.EntityMob;
@@ -173,6 +174,10 @@ public class EntityNiko extends EntityTameable {
         return super.interact(p);
     }
 
+    public void tell(String s) {
+        if (getOwner() instanceof EntityPlayer) ((EntityPlayer) getOwner()).addChatMessage(new ChatComponentText("<Niko> " + s));
+    }
+
     /** Status report: right-click Niko with a stick. */
     private void report(EntityPlayer p) {
         ItemStack hand = getEquipmentInSlot(0);
@@ -186,6 +191,14 @@ public class EntityNiko extends EntityTameable {
                 + " | HP " + (int) getHealth() + "/" + (int) getMaxHealth()
                 + " | holding: " + (hand == null ? "nothing" : hand.getDisplayName())
                 + " | stored items: " + stored));
+        String gun;
+        if (!GunHelper.bridgeOk()) gun = "HBM bridge FAILED";
+        else if (!GunHelper.isGun(hand)) gun = "no HBM gun in hand";
+        else gun = "gun ready, loaded rounds " + GunHelper.ammo(this, hand);
+        EntityLivingBase tg = getAttackTarget();
+        p.addChatMessage(new ChatComponentText("<Niko> Gun: " + gun + " | target: "
+                + (tg == null ? "none" : tg.getCommandSenderName()) + " | sitting: " + isSitting()
+                + " | last gun error: " + GunHelper.lastError));
     }
 
     private boolean holdsLight() {
