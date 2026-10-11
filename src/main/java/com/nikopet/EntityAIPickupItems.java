@@ -33,6 +33,9 @@ public class EntityAIPickupItems extends EntityAIBase {
     }
 
     @Override
+    public void startExecuting() { n.task = "gathering items"; }
+
+    @Override
     public boolean continueExecuting() {
         return target != null && !target.isDead && !n.isSitting() && n.getDistanceSqToEntity(target) < 196.0D;
     }
@@ -48,5 +51,5 @@ public class EntityAIPickupItems extends EntityAIBase {
     }
 
     @Override
-    public void resetTask() { target = null; }
+    public void resetTask() { target = null; n.task = "idle"; }
 }
