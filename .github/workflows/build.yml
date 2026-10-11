@@ -24,21 +24,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gradle
 
-      - name: Inject Minecraft 1.7.10 Jars into Gradle Cache
-        run: |
-          mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10
-          mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10
-          mkdir -p ~/.gradle/caches/minecraft/assets/indexes
-          
-          echo "Downloading client jar..."
-          curl -L -o ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar https://launcher.mojang.com/v1/objects/c4f2ebd9a36592206ae853aaa43f726621c1724b/client.jar
-          
-          echo "Downloading server jar..."
-          curl -L -o ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar https://launcher.mojang.com/v1/objects/952438ac4e01b4d115c5fc38f891710c4941df29/server.jar
-          
-          echo "Downloading asset index..."
-          curl -L -o ~/.gradle/caches/minecraft/assets/indexes/1.7.10.json https://piston-meta.mojang.com/v1/packages/33271df438e1fcdcb7bcaf224d08a90258079b7b/1.7.10.json
-
       - name: Build Mod
         run: gradle build --stacktrace
 

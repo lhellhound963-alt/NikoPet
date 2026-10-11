@@ -26,6 +26,16 @@ minecraft {
     runDir = "eclipse"
 }
 
+// ดักเปลี่ยนลิงก์ Amazon S3 ที่ตายแล้ว ให้มาใช้ลิงก์ปัจจุบันของ Mojang แทน
+tasks.all { task ->
+    if (task.name == 'downloadClient') {
+        task.url = 'https://launcher.mojang.com/v1/objects/c4f2ebd9a36592206ae853aaa43f726621c1724b/client.jar'
+    }
+    if (task.name == 'downloadServer') {
+        task.url = 'https://launcher.mojang.com/v1/objects/952438ac4e01b4d115c5fc38f891710c4941df29/server.jar'
+    }
+}
+
 dependencies {
 }
 
