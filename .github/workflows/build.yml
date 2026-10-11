@@ -1,22 +1,28 @@
 name: Build NikoPet
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+
+on: [push, pull_request]
+
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: 8
-      - uses: gradle/actions/setup-gradle@v3
+          distribution: 'zulu'
+          java-version: '8'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          gradle-version: 2.14.1
-      - run: gradle setupCIWorkspace build --stacktrace
-      - uses: actions/upload-artifact@v4
-        with:
-          name: NikoPet-jar
+          name: NikoPet-Mod
           path: build/libs/*.jar
