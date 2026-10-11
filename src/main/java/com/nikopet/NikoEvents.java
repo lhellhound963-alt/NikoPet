@@ -26,6 +26,10 @@ public class NikoEvents {
         if (p.isSneaking()) {
             best.points.clear();
             p.addChatMessage(new ChatComponentText("<Niko> Checkpoints cleared."));
+        } else if (!best.points.isEmpty() && Math.abs(best.points.get(best.points.size() - 1)[0] - e.x) <= 1
+                && Math.abs(best.points.get(best.points.size() - 1)[1] - (e.y + 1)) <= 1
+                && Math.abs(best.points.get(best.points.size() - 1)[2] - e.z) <= 1) {
+            // duplicate click event on the same block: ignore
         } else if (best.points.size() >= 8) {
             p.addChatMessage(new ChatComponentText("<Niko> Max 8 checkpoints."));
         } else {

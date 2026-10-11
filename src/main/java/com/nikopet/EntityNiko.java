@@ -37,11 +37,16 @@ public class EntityNiko extends EntityTameable {
     public boolean patrolling;
     private int lx, ly, lz;
     private boolean lit;
+    private int lastAct = -100;
+    public int lastTargetId = -1;
+    public int lastTargetTell = -10000;
 
     public EntityNiko(World w) {
         super(w);
         setSize(0.6F, 1.8F);
         getNavigator().setAvoidsWater(true);
+        getNavigator().setBreakDoors(true);
+        tasks.addTask(2, new EntityAIOpenDoor(this, true));
         tasks.addTask(1, new EntityAISwimming(this));
         tasks.addTask(1, new EntityAIPatrol(this));
         tasks.addTask(1, new EntityAIShootGun(this));
@@ -106,6 +111,15 @@ public class EntityNiko extends EntityTameable {
         }
     }
 
+    /** Adds the room line plus power/fluid lines to the patrol findings. */
+    public void inspectInto(int[] p, boolean reached, String why) {
+        String line = inspect(p, reached);
+        if (!reached && why != null) line = line.replace("(could not reach)", "(could not reach: " + why + ")");
+        findings.add(line);
+        List<HbmReader.Reading> rs = HbmReader.scan(worldObj, p[0], p[1], p[2], 8, 6, 8);
+        for (String l : HbmReader.summary(rs)) findings.add("   " + l);
+    }
+
     public String inspect(int[] p, boolean reached) {
         int hbm = 0, furn = 0, burn = 0, other = 0;
         for (Object o : worldObj.loadedTileEntityList) {
@@ -162,6 +176,8 @@ public class EntityNiko extends EntityTameable {
                 return true;
             }
         } else if (func_152114_e(p)) { // is owner
+            if (ticksExisted - lastAct < 5) return true; // ignore duplicate click events
+            lastAct = ticksExisted;
             if (food && getHealth() < getMaxHealth()) {
                 heal(((ItemFood) s.getItem()).func_150905_g(s));
                 consume(p, s);
@@ -181,6 +197,10 @@ public class EntityNiko extends EntityTameable {
                 }
                 return true;
             }
+            if (s != null && s.getItem() == Items.compass && !p.isSneaking()) {
+                if (!worldObj.isRemote) readMachines(p);
+                return true;
+            }
             if (s != null && s.getItem() == Items.stick && !p.isSneaking()) {
                 if (!worldObj.isRemote) report(p);
                 return true;
@@ -197,6 +217,24 @@ public class EntityNiko extends EntityTameable {
             return true;
         }
         return super.interact(p);
+    }
+
+    /** Compass + right-click Niko: read power (HE) and fluids/steam of the nearest HBM machines. */
+    private void readMachines(EntityPlayer p) {
+        if (!HbmReader.ready()) {
+            tell("Power/fluid reader unavailable: " + HbmReader.lastError);
+            return;
+        }
+        List<HbmReader.Reading> rs = HbmReader.scan(worldObj, MathHelper.floor_double(posX), MathHelper.floor_double(posY),
+                MathHelper.floor_double(posZ), 16, 8, 16);
+        List<String> lines = HbmReader.detail(rs, 6);
+        if (lines.isEmpty()) {
+            tell("No HBM machine with power or tanks within 16 blocks.");
+            return;
+        }
+        tell("Machines nearby (" + rs.size() + " found, nearest " + lines.size() + "):");
+        for (String l : lines) tell(l);
+        for (String l : HbmReader.summary(rs)) tell(l);
     }
 
     public void tell(String s) {
@@ -224,6 +262,7 @@ public class EntityNiko extends EntityTameable {
         p.addChatMessage(new ChatComponentText("<Niko> Gun: " + gun + " | target: "
                 + (tg == null ? "none" : tg.getCommandSenderName()) + " | sitting: " + isSitting()
                 + " | last gun error: " + GunHelper.lastError));
+        p.addChatMessage(new ChatComponentText("<Niko> Body: " + HbmReader.radiation(this)));
     }
 
     private boolean holdsLight() {

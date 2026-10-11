@@ -41,6 +41,16 @@ public class GunHelper {
         return ok && s != null && gunClass.isInstance(s.getItem());
     }
 
+    /** Effective firing distance by weapon family (flamers / chem sprayers are short range, rest default). */
+    public static double range(ItemStack g) {
+        if (g == null) return 20.0D;
+        String n = g.getItem().getClass().getSimpleName().toLowerCase(java.util.Locale.ROOT)
+                + " " + String.valueOf(g.getItem().getUnlocalizedName()).toLowerCase(java.util.Locale.ROOT);
+        if (n.contains("flam") || n.contains("chemthrower") || n.contains("chargethrower")) return 9.0D;
+        if (n.contains("stinger") || n.contains("rocket") || n.contains("sniper") || n.contains("rifle")) return 28.0D;
+        return 20.0D;
+    }
+
     /** Drives the gun's internal state machine (the game normally does this for the holder). */
     public static void tick(EntityNiko n, ItemStack g) {
         try {

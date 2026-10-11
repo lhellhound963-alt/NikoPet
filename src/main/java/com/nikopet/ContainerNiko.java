@@ -45,7 +45,15 @@ public class ContainerNiko extends Container {
         ArmorSlot(IInventory inv, int i, int x, int y) { super(inv, i, x, y); equipIndex = i; }
         @Override public int getSlotStackLimit() { return 1; }
         @Override public boolean isItemValid(ItemStack s) {
-            return s != null && s.getItem() instanceof ItemArmor && ((ItemArmor) s.getItem()).armorType == 4 - equipIndex;
+            if (s == null) return false;
+            int type = 4 - equipIndex; // 0 helmet, 1 chest, 2 legs, 3 boots
+            if (s.getItem() instanceof ItemArmor && ((ItemArmor) s.getItem()).armorType == type) return true;
+            try {
+                // covers modded armor / masks that declare their slot via Forge's hook
+                return s.getItem().isValidArmor(s, type, null);
+            } catch (Throwable t) {
+                return false;
+            }
         }
     }
 }

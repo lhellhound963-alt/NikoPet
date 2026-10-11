@@ -32,7 +32,14 @@ public class EntityAIShootGun extends EntityAIBase {
         mode = 0; timer = 10; reloadTicks = 0; warned = false;
         n.task = "shooting";
         EntityLivingBase tg = n.getAttackTarget();
-        if (tg != null) n.tell("Target: " + tg.getCommandSenderName());
+        if (tg != null) {
+            int gap = n.ticksExisted - n.lastTargetTell;
+            if ((tg.getEntityId() != n.lastTargetId && gap >= 100) || gap >= 1200) {
+                n.tell("Target: " + tg.getCommandSenderName());
+                n.lastTargetId = tg.getEntityId();
+                n.lastTargetTell = n.ticksExisted;
+            }
+        }
     }
 
     @Override
@@ -43,7 +50,8 @@ public class EntityAIShootGun extends EntityAIBase {
         n.getLookHelper().setLookPositionWithEntity(tg, 30.0F, 30.0F);
         boolean see = n.getEntitySenses().canSee(tg);
         double d2 = n.getDistanceSqToEntity(tg);
-        if (!see || d2 > 196.0D) n.getNavigator().tryMoveToEntityLiving(tg, 1.0D);
+        double range = GunHelper.range(g);
+        if (!see || d2 > range * range * 0.5D) n.getNavigator().tryMoveToEntityLiving(tg, 1.0D);
         else n.getNavigator().clearPathEntity();
 
         aimAt(tg);
@@ -62,7 +70,7 @@ public class EntityAIShootGun extends EntityAIBase {
             GunHelper.setKeys(n, g, false, false);
         } else if (mode == 0) {
             GunHelper.setKeys(n, g, false, false);
-            if (timer <= 0 && see && d2 < 20.0D * 20.0D) { mode = 1; timer = 15 + n.getRNG().nextInt(25); }
+            if (timer <= 0 && see && d2 < range * range) { mode = 1; timer = 15 + n.getRNG().nextInt(25); }
         } else {
             if (!see || timer <= 0) { mode = 0; timer = 10 + n.getRNG().nextInt(20); GunHelper.setKeys(n, g, false, false); }
             else GunHelper.setKeys(n, g, true, false);
