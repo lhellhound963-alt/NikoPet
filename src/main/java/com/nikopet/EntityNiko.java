@@ -35,6 +35,12 @@ public class EntityNiko extends EntityTameable {
     public int patrolIndex;
     private int lastRbmkWarn = -10000;
     public boolean patrolling;
+    // owner-commanded fuel rod change
+    public int[] pool;
+    public final List<int[]> cols = new ArrayList<int[]>();
+    public boolean swapping;
+    public int swapIdx;
+    public ItemStack carrying;
     private int lx, ly, lz;
     private boolean lit;
     private int lastAct = -100;
@@ -49,6 +55,7 @@ public class EntityNiko extends EntityTameable {
         tasks.addTask(2, new EntityAIOpenDoor(this, true));
         tasks.addTask(1, new EntityAISwimming(this));
         tasks.addTask(1, new EntityAIPatrol(this));
+        tasks.addTask(1, new EntityAIRodSwap(this));
         tasks.addTask(1, new EntityAIShootGun(this));
         targetTasks.addTask(1, new EntityAIOwnerHurtByTarget(this));
         targetTasks.addTask(2, new EntityAIOwnerHurtTarget(this));
@@ -108,6 +115,45 @@ public class EntityNiko extends EntityTameable {
             lastRbmkWarn = ticksExisted;
             tell("WARNING! RBMK column at " + r.wx + "," + r.wy + "," + r.wz + " is at "
                     + Math.round(r.worstRatio * 100.0D) + "% of max heat. Right-click me with redstone dust for AZ-5.");
+        }
+    }
+
+    public int findRodSlot() {
+        for (int i = 5; i < inv.getSizeInventory(); i++) if (RodHelper.isRodStack(inv.getStackInSlot(i))) return i;
+        return -1;
+    }
+
+    /** Owner command (blaze rod): change the fuel rods in the marked columns. */
+    public void startSwap(EntityPlayer p) {
+        if (!RodHelper.ready()) { tell("Rod bridge unavailable: " + RodHelper.lastError); return; }
+        if (pool == null) { tell("Mark the storage pool first: right-click it with a feather."); return; }
+        if (cols.isEmpty() && carrying == null) { tell("Mark the columns first: right-click each with flint."); return; }
+        int rods = 0;
+        for (int i = 5; i < inv.getSizeInventory(); i++) {
+            ItemStack s = inv.getStackInSlot(i);
+            if (RodHelper.isRodStack(s)) rods += s.stackSize;
+        }
+        if (rods < cols.size()) { tell("I only carry " + rods + " fresh rods for " + cols.size() + " columns."); return; }
+        swapIdx = 0;
+        swapping = true;
+        aiSit.setSitting(false);
+        tell("Okay, changing " + cols.size() + " columns. Hot rods only if the control rods are fully in (AZ-5).");
+    }
+
+    public void finishSwap() {
+        swapping = false;
+        task = "idle";
+        tell("Fuel rod change finished.");
+    }
+
+    public void abortSwap(String why) {
+        swapping = false;
+        task = "idle";
+        tell("Stopped: " + why);
+        if (carrying != null) {
+            aiSit.setSitting(true); // stay put instead of wandering with the old rod
+            tell("WARNING: I am still holding the OLD (possibly hot) rod at " + (int) posX + "," + (int) posY + "," + (int) posZ
+                    + ". I am sitting. Fix the pool, then right-click me with a blaze rod to finish delivering it.");
         }
     }
 
@@ -197,6 +243,12 @@ public class EntityNiko extends EntityTameable {
                 }
                 return true;
             }
+            if (s != null && s.getItem() == Items.blaze_rod && !p.isSneaking()) {
+                if (!worldObj.isRemote) {
+                    if (swapping) abortSwap("cancelled by you."); else startSwap(p);
+                }
+                return true;
+            }
             if (s != null && s.getItem() == Items.compass && !p.isSneaking()) {
                 if (!worldObj.isRemote) readMachines(p);
                 return true;
@@ -263,6 +315,9 @@ public class EntityNiko extends EntityTameable {
                 + (tg == null ? "none" : tg.getCommandSenderName()) + " | sitting: " + isSitting()
                 + " | last gun error: " + GunHelper.lastError));
         p.addChatMessage(new ChatComponentText("<Niko> Body: " + HbmReader.radiation(this)));
+        p.addChatMessage(new ChatComponentText("<Niko> Rod change: pool " + (pool == null ? "not set" : pool[0] + "," + pool[1] + "," + pool[2])
+                + " | columns marked " + cols.size() + " | " + (swapping ? "working" : "idle")
+                + " | holding old rod: " + (carrying != null) + " | last rod error: " + RodHelper.lastError));
     }
 
     private boolean holdsLight() {
@@ -348,6 +403,7 @@ public class EntityNiko extends EntityTameable {
                 inv.setInventorySlotContents(i, null);
             }
             for (int i = 0; i < 5; i++) setCurrentItemOrArmor(i, null);
+            if (carrying != null) { entityDropItem(carrying, 0.5F); carrying = null; }
         }
         super.onDeath(src);
     }
@@ -369,6 +425,15 @@ public class EntityNiko extends EntityTameable {
         NBTTagList pl = new NBTTagList();
         for (int[] p : points) pl.appendTag(new NBTTagIntArray(p));
         t.setTag("NikoPoints", pl);
+        if (pool != null) t.setIntArray("NikoPool", pool);
+        NBTTagList cl = new NBTTagList();
+        for (int[] c : cols) cl.appendTag(new NBTTagIntArray(c));
+        t.setTag("NikoCols", cl);
+        if (carrying != null) {
+            NBTTagCompound cc = new NBTTagCompound();
+            carrying.writeToNBT(cc);
+            t.setTag("NikoCarry", cc);
+        }
     }
 
     @Override
@@ -383,5 +448,12 @@ public class EntityNiko extends EntityTameable {
         NBTTagList pl = t.getTagList("NikoPoints", 11);
         points.clear();
         for (int i = 0; i < pl.tagCount(); i++) points.add(pl.func_150306_c(i));
+        pool = t.hasKey("NikoPool") ? t.getIntArray("NikoPool") : null;
+        if (pool != null && pool.length != 3) pool = null;
+        NBTTagList cl = t.getTagList("NikoCols", 11);
+        cols.clear();
+        for (int i = 0; i < cl.tagCount(); i++) cols.add(cl.func_150306_c(i));
+        carrying = t.hasKey("NikoCarry") ? ItemStack.loadItemStackFromNBT(t.getCompoundTag("NikoCarry")) : null;
+        swapping = false;
     }
 }

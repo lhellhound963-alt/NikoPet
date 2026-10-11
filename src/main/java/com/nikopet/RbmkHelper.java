@@ -11,12 +11,13 @@ public class RbmkHelper {
     private static boolean tried, ok;
     private static Class<?> base, manual;
     private static Method maxHeat, setTarget;
-    private static Field heat, level, startingLevel;
+    private static Field heat, level, startingLevel, levelAny;
+    private static Class<?> ctrlBase;
     public static String lastError = "none";
 
     public static class Result {
-        public int columns, rods, controls;
-        public double worstRatio, ctrlSum;
+        public int columns, rods, controls, allControls;
+        public double worstRatio, ctrlSum, maxCtrlLevel;
         public int wx, wy, wz;
     }
 
@@ -42,6 +43,10 @@ public class RbmkHelper {
             level = find(manual, "level");
             startingLevel = find(manual, "startingLevel");
             setTarget = manual.getMethod("setTarget", double.class);
+            try {
+                ctrlBase = Class.forName("com.hbm.tileentity.machine.rbmk.TileEntityRBMKControl");
+                levelAny = find(ctrlBase, "level");
+            } catch (Throwable t) { ctrlBase = null; levelAny = null; }
             ok = true;
             FMLLog.info("[NikoPet] RBMK bridge ready");
         } catch (Throwable t) {
@@ -66,6 +71,11 @@ public class RbmkHelper {
                 String n = te.getClass().getSimpleName();
                 if (n.contains("RBMKRod")) r.rods++;
                 if (manual.isInstance(te)) { r.controls++; r.ctrlSum += level.getDouble(te); }
+                if (ctrlBase != null && ctrlBase.isInstance(te)) {
+                    r.allControls++;
+                    double lv = levelAny.getDouble(te);
+                    if (lv > r.maxCtrlLevel) r.maxCtrlLevel = lv;
+                }
                 double mh = ((Double) maxHeat.invoke(te)).doubleValue();
                 if (mh > 0) {
                     double ratio = heat.getDouble(te) / mh;
