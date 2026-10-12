@@ -46,6 +46,10 @@ public class EntityNiko extends EntityTameable {
     private boolean lit;
     private int lastAct = -100;
     public int lastTargetId = -1;
+    /** True while retreating to the owner (no attacking). */
+    public boolean fleeing;
+    /** True when the held gun is empty and cannot be reloaded: she switches to close combat. */
+    public boolean gunDry;
     public int lastTargetTell = -10000;
 
     public EntityNiko(World w) {
@@ -57,13 +61,21 @@ public class EntityNiko extends EntityTameable {
         tasks.addTask(1, new EntityAISwimming(this));
         tasks.addTask(1, new EntityAIPatrol(this));
         tasks.addTask(1, new EntityAIRodSwap(this));
+        tasks.addTask(0, new EntityAIFleeToOwner(this));
+        tasks.addTask(0, new EntityAINikoMelee(this));
         tasks.addTask(1, new EntityAIShootGun(this));
+        targetTasks.addTask(2, new EntityAIHurtByTarget(this, true) {
+            @Override
+            public boolean shouldExecute() { return EntityNiko.this.isTamed() && !EntityNiko.this.fleeing && super.shouldExecute(); }
+        });
         targetTasks.addTask(1, new EntityAIOwnerHurtByTarget(this));
         targetTasks.addTask(2, new EntityAIOwnerHurtTarget(this));
         targetTasks.addTask(3, new EntityAINearestAttackableTarget(this, EntityMob.class, 0, true) {
             @Override
             public boolean shouldExecute() {
-                return EntityNiko.this.isTamed() && GunHelper.isGun(EntityNiko.this.getEquipmentInSlot(0)) && super.shouldExecute();
+                ItemStack h = EntityNiko.this.getEquipmentInSlot(0);
+                return EntityNiko.this.isTamed() && !EntityNiko.this.fleeing
+                        && (GunHelper.isGun(h) || MeleeHelper.isMelee(h)) && super.shouldExecute();
             }
         });
         tasks.addTask(2, aiSit);
@@ -192,7 +204,10 @@ public class EntityNiko extends EntityTameable {
     @Override
     protected void applyEntityAttributes() {
         super.applyEntityAttributes();
-        getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(20.0D);
+        getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(40.0D);
+        if (getAttributeMap().getAttributeInstance(SharedMonsterAttributes.attackDamage) == null)
+            getAttributeMap().registerAttribute(SharedMonsterAttributes.attackDamage);
+        getEntityAttribute(SharedMonsterAttributes.attackDamage).setBaseValue(3.0D);
         getEntityAttribute(SharedMonsterAttributes.movementSpeed).setBaseValue(0.3D);
     }
 
@@ -382,6 +397,10 @@ public class EntityNiko extends EntityTameable {
     public void onLivingUpdate() {
         super.onLivingUpdate();
         if (!worldObj.isRemote) {
+            if (gunDry && ticksExisted % 40 == 0) {
+                ItemStack h = getEquipmentInSlot(0);
+                if (!GunHelper.isGun(h) || GunHelper.ammo(this, h) != 0) gunDry = false;
+            }
             // GUI slots 0..4 are what she wears / holds
             for (int i = 0; i < 5; i++) {
                 ItemStack s = inv.getStackInSlot(i);
@@ -441,6 +460,8 @@ public class EntityNiko extends EntityTameable {
     @Override
     public void readEntityFromNBT(NBTTagCompound t) {
         super.readEntityFromNBT(t);
+        // old saves stored 20 max health in their attributes: raise it to the current value (keeps current HP)
+        getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(40.0D);
         NBTTagList l = t.getTagList("NikoInv", 10);
         for (int i = 0; i < l.tagCount(); i++) {
             NBTTagCompound c = l.getCompoundTagAt(i);
