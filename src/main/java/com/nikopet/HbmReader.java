@@ -262,7 +262,7 @@ public class HbmReader {
         try {
             float rad = ((Number) radGet.invoke(null, e)).floatValue();
             String hz = "";
-            if (armorHazmat != null) hz = ((Boolean) armorHazmat.invoke(null, e)).booleanValue() ? ", hazmat suit ON" : ", no hazmat suit";
+            if (armorHazmat != null) hz = ((Boolean) armorHazmat.invoke(null, e)).booleanValue() ? ", full HBM hazmat set" : "";
             return "radiation " + Math.round(rad * 10.0F) / 10.0F + " RAD" + hz;
         } catch (Throwable t) {
             return "radiation: n/a";

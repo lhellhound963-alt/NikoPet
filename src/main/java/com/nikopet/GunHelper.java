@@ -96,6 +96,30 @@ public class GunHelper {
         }
     }
 
+    /** Magazine capacity, or -1 if unknown. */
+    public static int capacity(EntityNiko n, ItemStack g) {
+        init();
+        if (!ok) return -1;
+        try {
+            Object cfg = getConfig.invoke(g.getItem(), g, 0);
+            if (cfg == null) return -1;
+            Method gr = cfg.getClass().getMethod("getReceivers", ItemStack.class);
+            gr.setAccessible(true);
+            Object[] rec = (Object[]) gr.invoke(cfg, g);
+            if (rec == null || rec.length == 0) return -1;
+            Method gm = rec[0].getClass().getMethod("getMagazine", ItemStack.class);
+            gm.setAccessible(true);
+            Object mag = gm.invoke(rec[0], g);
+            if (mag == null) return -1;
+            Method gc = magClass.getMethod("getCapacity", ItemStack.class);
+            gc.setAccessible(true);
+            return ((Integer) gc.invoke(mag, g)).intValue();
+        } catch (Throwable t) {
+            err("capacity", t);
+            return -1;
+        }
+    }
+
     private static void err(String where, Throwable t) {
         Throwable c = t.getCause() != null ? t.getCause() : t;
         String msg = where + ": " + c;

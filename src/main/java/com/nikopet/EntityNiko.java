@@ -30,6 +30,7 @@ public class EntityNiko extends EntityTameable {
     public final InventoryBasic inv = new InventoryBasic("Niko", false, 27);
 
     public String task = "idle";
+    private final RadiationShield shield = new RadiationShield();
     public final List<int[]> points = new ArrayList<int[]>();
     public final List<String> findings = new ArrayList<String>();
     public int patrolIndex;
@@ -314,7 +315,7 @@ public class EntityNiko extends EntityTameable {
         p.addChatMessage(new ChatComponentText("<Niko> Gun: " + gun + " | target: "
                 + (tg == null ? "none" : tg.getCommandSenderName()) + " | sitting: " + isSitting()
                 + " | last gun error: " + GunHelper.lastError));
-        p.addChatMessage(new ChatComponentText("<Niko> Body: " + HbmReader.radiation(this)));
+        p.addChatMessage(new ChatComponentText("<Niko> Body: " + HbmReader.radiation(this) + " | " + RadiationShield.describe(this)));
         p.addChatMessage(new ChatComponentText("<Niko> Rod change: pool " + (pool == null ? "not set" : pool[0] + "," + pool[1] + "," + pool[2])
                 + " | columns marked " + cols.size() + " | " + (swapping ? "working" : "idle")
                 + " | holding old rod: " + (carrying != null) + " | last rod error: " + RodHelper.lastError));
@@ -387,6 +388,7 @@ public class EntityNiko extends EntityTameable {
                 if (s != getEquipmentInSlot(i)) setCurrentItemOrArmor(i, s);
             }
             updateLight();
+            shield.tick(this);
             if (ticksExisted % 100 == 0 && isTamed() && !patrolling) monitorReactor();
             ItemStack gun = getEquipmentInSlot(0);
             if (gun != null && GunHelper.isGun(gun)) GunHelper.tick(this, gun);

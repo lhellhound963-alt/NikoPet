@@ -9,7 +9,7 @@ import net.minecraft.item.ItemStack;
 public class EntityAIShootGun extends EntityAIBase {
     private final EntityNiko n;
     private int mode; // 0 wait, 1 firing, 2 reloading, 3 out of ammo
-    private int timer, reloadTicks, logTimer;
+    private int timer, reloadTicks, logTimer, lastAmt, cap, noReloadUntil;
     private boolean warned;
 
     public EntityAIShootGun(EntityNiko n) {
@@ -29,7 +29,7 @@ public class EntityAIShootGun extends EntityAIBase {
 
     @Override
     public void startExecuting() {
-        mode = 0; timer = 10; reloadTicks = 0; warned = false;
+        mode = 0; timer = 6; reloadTicks = 0; warned = false; lastAmt = -2; cap = -1; noReloadUntil = 0;
         n.task = "shooting";
         EntityLivingBase tg = n.getAttackTarget();
         if (tg != null) {
@@ -57,23 +57,32 @@ public class EntityAIShootGun extends EntityAIBase {
         aimAt(tg);
         timer--;
         int amt = GunHelper.ammo(n, g);
+        if (cap <= 0 || logTimer % 100 == 0) cap = GunHelper.capacity(n, g);
+        if (amt > lastAmt && mode == 2) reloadTicks = 0; // shotguns load one shell at a time: progress resets the timeout
+        lastAmt = amt;
         if (amt == 0 && mode < 2) { mode = 2; reloadTicks = 0; }
-        if (amt != 0 && mode >= 2) { mode = 0; timer = 10; warned = false; }
+        if (mode == 3 && amt != 0) { mode = 0; timer = 6; warned = false; }
+        if (mode == 2 && amt != 0 && (cap <= 0 || amt >= cap)) { mode = 0; timer = 6; warned = false; }
+        // not in sight: use the time to top the magazine up
+        if (mode == 0 && !see && amt > 0 && cap > 0 && amt < cap && n.ticksExisted > noReloadUntil) { mode = 2; reloadTicks = 0; }
 
         if (mode == 2) {
             GunHelper.setKeys(n, g, false, true);
-            if (++reloadTicks > 120) {
-                mode = 3;
-                if (!warned) { n.tell("Out of ammo!"); warned = true; }
+            if (++reloadTicks > 300) {
+                if (amt > 0) { mode = 0; timer = 6; noReloadUntil = n.ticksExisted + 600; } // cannot top up: fire what is loaded
+                else {
+                    mode = 3;
+                    if (!warned) { n.tell("Out of ammo!"); warned = true; }
+                }
             }
         } else if (mode == 3) {
             GunHelper.setKeys(n, g, false, false);
         } else if (mode == 0) {
             GunHelper.setKeys(n, g, false, false);
-            if (timer <= 0 && see && d2 < range * range) { mode = 1; timer = 15 + n.getRNG().nextInt(25); }
+            if (timer <= 0 && see && d2 < range * range) { mode = 1; timer = 40 + n.getRNG().nextInt(40); }
         } else {
-            if (!see || timer <= 0) { mode = 0; timer = 10 + n.getRNG().nextInt(20); GunHelper.setKeys(n, g, false, false); }
-            else GunHelper.setKeys(n, g, true, false);
+            if (!see || timer <= 0) { mode = 0; timer = 4 + n.getRNG().nextInt(5); GunHelper.setKeys(n, g, false, false); }
+            else GunHelper.setKeys(n, g, (timer & 3) != 0, false); // fresh trigger press every 4 ticks (semi-auto / pump guns need it)
         }
         if (++logTimer % 100 == 0) FMLLog.info("[NikoPet] shoot: mode=%s ammo=%s dist=%.1f see=%s err=%s", String.valueOf(mode), String.valueOf(amt), Math.sqrt(d2), String.valueOf(see), GunHelper.lastError);
     }
