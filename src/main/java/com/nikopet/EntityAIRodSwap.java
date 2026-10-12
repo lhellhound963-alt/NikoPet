@@ -51,7 +51,7 @@ public class EntityAIRodSwap extends EntityAIBase {
         if (stage == 0) {
             if (n.swapIdx >= n.cols.size()) { n.finishSwap(); return; }
             int[] col = n.cols.get(n.swapIdx);
-            if (timer > 600) { n.abortSwap("could not reach column " + label() + "."); return; }
+            if (timer > 600) { n.abortSwap("could not reach column " + (n.swapIdx + 1) + "."); return; }
             if (!near(col)) { walk(col); return; }
             TileEntity ct = RodHelper.findLoadable(n.worldObj, col[0], col[1], col[2]);
             TileEntity pt = RodHelper.findPool(n.worldObj, n.pool[0], n.pool[1], n.pool[2]);
@@ -61,12 +61,12 @@ public class EntityAIRodSwap extends EntityAIBase {
             if (slot < 0) { n.abortSwap("no fresh fuel rod in my bag."); return; }
             ItemStack[] res = new ItemStack[1];
             String err = RodHelper.swapAtColumn(ct, pt, n.inv.getStackInSlot(slot), res);
-            if (err != null) { n.abortSwap("column " + label() + ": " + err + ". Nothing changed."); return; }
+            if (err != null) { n.abortSwap("column " + (n.swapIdx + 1) + ": " + err + ". Nothing changed."); return; }
             ItemStack f = n.inv.getStackInSlot(slot);
             f.stackSize--;
             if (f.stackSize <= 0) n.inv.setInventorySlotContents(slot, null);
             n.carrying = res[0];
-            n.tell("Column " + label() + ": new rod in. Taking the old one to the pool.");
+            n.tell("Column " + (n.swapIdx + 1) + ": new rod in. Taking the old one to the pool.");
             stage = 2;
             timer = 0;
             fails = 0;
@@ -88,17 +88,8 @@ public class EntityAIRodSwap extends EntityAIBase {
         }
     }
 
-    /** Column coordinates for chat messages (marks are removed as they finish, so a running number would repeat). */
-    private String label() {
-        if (n.swapIdx < n.cols.size()) {
-            int[] c = n.cols.get(n.swapIdx);
-            return c[0] + "," + c[1] + "," + c[2];
-        }
-        return "?";
-    }
-
     private void skip(String why) {
-        n.tell("Column " + label() + ": " + why + " Skipping.");
+        n.tell("Column " + (n.swapIdx + 1) + ": " + why + " Skipping.");
         n.swapIdx++;
         timer = 0;
         fails = 0;
