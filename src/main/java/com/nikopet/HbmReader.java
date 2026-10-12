@@ -23,6 +23,7 @@ public class HbmReader {
     private static Method tankType, tankFill, tankMax, typeLocal, typeName;
     private static Method armorHazmat, radGet;
     public static String lastError = "none";
+    private static final Map<String, double[]> prevPower = new java.util.HashMap<String, double[]>();
 
     public static class Tank {
         public String name;
@@ -36,6 +37,8 @@ public class HbmReader {
         public long power, maxPower;
         public final List<Tank> tanks = new ArrayList<Tank>();
         public double dist;
+        public boolean hasRate;
+        public double rate; // net change of stored HE per second since the last reading
     }
 
     private static void init() {
@@ -156,6 +159,18 @@ public class HbmReader {
                         r.power = ((Number) getPower.invoke(te)).longValue();
                         r.maxPower = ((Number) getMaxPower.invoke(te)).longValue();
                         r.hasPower = r.maxPower > 0;
+                        if (r.hasPower) {
+                            String key = w.provider.dimensionId + ":" + te.xCoord + "," + te.yCoord + "," + te.zCoord;
+                            long now = w.getTotalWorldTime();
+                            double[] pv = prevPower.get(key);
+                            if (pv == null || now - (long) pv[0] >= 20L) {
+                                if (pv != null && now - (long) pv[0] <= 72000L) {
+                                    r.hasRate = true;
+                                    r.rate = (r.power - pv[1]) / ((now - (long) pv[0]) / 20.0D);
+                                }
+                                prevPower.put(key, new double[] { now, r.power });
+                            }
+                        }
                     } catch (Throwable t) {
                         lastError = "power: " + (t.getCause() != null ? t.getCause() : t);
                     }
@@ -181,6 +196,11 @@ public class HbmReader {
         if (v >= 1000000L) return String.format(Locale.ROOT, "%.2fM HE", d / 1.0E6D);
         if (v >= 1000L) return String.format(Locale.ROOT, "%.2fk HE", d / 1.0E3D);
         return v + " HE";
+    }
+
+    public static String fmtRate(double v) {
+        long a = Math.round(Math.abs(v));
+        return (v < 0 ? "-" : "+") + fmtHE(a) + "/s";
     }
 
     public static String fmtMB(long v) { return String.format(Locale.ROOT, "%,d", Long.valueOf(v)); }
@@ -210,7 +230,11 @@ public class HbmReader {
                 }
             }
         }
-        if (pn > 0) out.add("Power: " + fmtHE(pw) + " / " + fmtHE(pmax) + " in " + pn + " machines");
+        double net = 0.0D;
+        int rn = 0;
+        for (Reading r : rs) if (r.hasRate) { net += r.rate; rn++; }
+        if (pn > 0) out.add("Power: " + fmtHE(pw) + " / " + fmtHE(pmax) + " in " + pn + " machines"
+                + (rn > 0 ? ", net " + fmtRate(net) : ""));
         if (!fluids.isEmpty()) {
             StringBuilder sb = new StringBuilder("Fluids: ");
             int shown = 0;
@@ -249,6 +273,7 @@ public class HbmReader {
             if (r.hasPower) {
                 if (!first) sb.append(" | ");
                 sb.append(fmtHE(r.power)).append(" / ").append(fmtHE(r.maxPower));
+                if (r.hasRate) sb.append(" (").append(fmtRate(r.rate)).append(')');
             }
             out.add(sb.toString());
         }

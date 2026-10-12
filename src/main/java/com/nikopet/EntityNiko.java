@@ -46,6 +46,11 @@ public class EntityNiko extends EntityTameable {
     private boolean lit;
     private int lastAct = -100;
     public int lastTargetId = -1;
+    /** True while retreating to the owner (no attacking). */
+    public boolean fleeing;
+    /** True when the held gun is empty and cannot be reloaded: she switches to close combat. */
+    public boolean gunDry;
+    private int lastEat = -1000;
     public int lastTargetTell = -10000;
 
     public EntityNiko(World w) {
@@ -57,13 +62,21 @@ public class EntityNiko extends EntityTameable {
         tasks.addTask(1, new EntityAISwimming(this));
         tasks.addTask(1, new EntityAIPatrol(this));
         tasks.addTask(1, new EntityAIRodSwap(this));
+        tasks.addTask(0, new EntityAIFleeToOwner(this));
+        tasks.addTask(0, new EntityAINikoMelee(this));
         tasks.addTask(1, new EntityAIShootGun(this));
+        targetTasks.addTask(2, new EntityAIHurtByTarget(this, true) {
+            @Override
+            public boolean shouldExecute() { return EntityNiko.this.isTamed() && !EntityNiko.this.fleeing && super.shouldExecute(); }
+        });
         targetTasks.addTask(1, new EntityAIOwnerHurtByTarget(this));
         targetTasks.addTask(2, new EntityAIOwnerHurtTarget(this));
         targetTasks.addTask(3, new EntityAINearestAttackableTarget(this, EntityMob.class, 0, true) {
             @Override
             public boolean shouldExecute() {
-                return EntityNiko.this.isTamed() && GunHelper.isGun(EntityNiko.this.getEquipmentInSlot(0)) && super.shouldExecute();
+                ItemStack h = EntityNiko.this.getEquipmentInSlot(0);
+                return EntityNiko.this.isTamed() && !EntityNiko.this.fleeing
+                        && (GunHelper.isGun(h) || MeleeHelper.isMelee(h)) && super.shouldExecute();
             }
         });
         tasks.addTask(2, aiSit);
@@ -192,7 +205,10 @@ public class EntityNiko extends EntityTameable {
     @Override
     protected void applyEntityAttributes() {
         super.applyEntityAttributes();
-        getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(20.0D);
+        getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(40.0D);
+        if (getAttributeMap().getAttributeInstance(SharedMonsterAttributes.attackDamage) == null)
+            getAttributeMap().registerAttribute(SharedMonsterAttributes.attackDamage);
+        getEntityAttribute(SharedMonsterAttributes.attackDamage).setBaseValue(3.0D);
         getEntityAttribute(SharedMonsterAttributes.movementSpeed).setBaseValue(0.3D);
     }
 
@@ -315,6 +331,11 @@ public class EntityNiko extends EntityTameable {
         p.addChatMessage(new ChatComponentText("<Niko> Gun: " + gun + " | target: "
                 + (tg == null ? "none" : tg.getCommandSenderName()) + " | sitting: " + isSitting()
                 + " | last gun error: " + GunHelper.lastError));
+        ItemStack hnd = getEquipmentInSlot(0);
+        p.addChatMessage(new ChatComponentText("<Niko> Combat: hand=" + (hnd == null ? "empty" : hnd.getDisplayName())
+                + " | melee item: " + MeleeHelper.isMelee(hnd) + " | hit dmg " + MeleeHelper.damage(hnd, 3.0D)
+                + " | fleeing: " + fleeing + " | gun dry: " + gunDry + " | HP " + (int) getHealth() + "/" + (int) getMaxHealth()
+                + " | task: " + task + " | melee error: " + MeleeHelper.lastError));
         p.addChatMessage(new ChatComponentText("<Niko> Body: " + HbmReader.radiation(this) + " | " + RadiationShield.describe(this)));
         p.addChatMessage(new ChatComponentText("<Niko> Rod change: pool " + (pool == null ? "not set" : pool[0] + "," + pool[1] + "," + pool[2])
                 + " | columns marked " + cols.size() + " | " + (swapping ? "working" : "idle")
@@ -355,6 +376,24 @@ public class EntityNiko extends EntityTameable {
         }
     }
 
+    /** Low health: eat food from her bag (skips spoiled / poisonous items). */
+    private void autoEat() {
+        if (getHealth() >= getMaxHealth() * 0.6F || ticksExisted - lastEat < 60) return;
+        for (int i = 5; i < inv.getSizeInventory(); i++) {
+            ItemStack s = inv.getStackInSlot(i);
+            if (s == null || !(s.getItem() instanceof ItemFood)) continue;
+            Item it = s.getItem();
+            if (it == Items.rotten_flesh || it == Items.poisonous_potato || it == Items.spider_eye) continue;
+            String nm = s.getDisplayName();
+            heal(((ItemFood) it).func_150905_g(s));
+            if (--s.stackSize <= 0) inv.setInventorySlotContents(i, null);
+            lastEat = ticksExisted;
+            playSound("random.eat", 1.0F, 1.0F);
+            tell("Eating " + nm + ". HP " + (int) getHealth() + "/" + (int) getMaxHealth());
+            return;
+        }
+    }
+
     private void consume(EntityPlayer p, ItemStack s) {
         if (!p.capabilities.isCreativeMode && --s.stackSize <= 0) {
             p.inventory.setInventorySlotContents(p.inventory.currentItem, null);
@@ -382,6 +421,12 @@ public class EntityNiko extends EntityTameable {
     public void onLivingUpdate() {
         super.onLivingUpdate();
         if (!worldObj.isRemote) {
+            if (ticksExisted % 20 == 0) autoEat();
+            if (isSitting() && hurtTime > 0 && getAITarget() instanceof EntityMob) aiSit.setSitting(false); // attacked: stand up and fight / run
+            if (gunDry && ticksExisted % 40 == 0) {
+                ItemStack h = getEquipmentInSlot(0);
+                if (!GunHelper.isGun(h) || GunHelper.ammo(this, h) != 0) gunDry = false;
+            }
             // GUI slots 0..4 are what she wears / holds
             for (int i = 0; i < 5; i++) {
                 ItemStack s = inv.getStackInSlot(i);
@@ -441,6 +486,8 @@ public class EntityNiko extends EntityTameable {
     @Override
     public void readEntityFromNBT(NBTTagCompound t) {
         super.readEntityFromNBT(t);
+        // old saves stored 20 max health in their attributes: raise it to the current value (keeps current HP)
+        getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(40.0D);
         NBTTagList l = t.getTagList("NikoInv", 10);
         for (int i = 0; i < l.tagCount(); i++) {
             NBTTagCompound c = l.getCompoundTagAt(i);

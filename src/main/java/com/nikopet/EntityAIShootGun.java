@@ -20,7 +20,7 @@ public class EntityAIShootGun extends EntityAIBase {
     @Override
     public boolean shouldExecute() {
         EntityLivingBase tg = n.getAttackTarget();
-        return tg != null && tg.isEntityAlive() && !n.isSitting() && !n.isNikoSleeping()
+        return tg != null && tg.isEntityAlive() && !n.isSitting() && !n.isNikoSleeping() && !n.fleeing && !n.gunDry
                 && GunHelper.isGun(n.getEquipmentInSlot(0)) && n.getDistanceSqToEntity(tg) < 26.0D * 26.0D;
     }
 
@@ -72,7 +72,8 @@ public class EntityAIShootGun extends EntityAIBase {
                 if (amt > 0) { mode = 0; timer = 6; noReloadUntil = n.ticksExisted + 600; } // cannot top up: fire what is loaded
                 else {
                     mode = 3;
-                    if (!warned) { n.tell("Out of ammo!"); warned = true; }
+                    if (!warned) { n.tell("Out of ammo! Switching to close combat."); warned = true; }
+                    n.gunDry = true;
                 }
             }
         } else if (mode == 3) {
