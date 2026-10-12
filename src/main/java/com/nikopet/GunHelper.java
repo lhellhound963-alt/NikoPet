@@ -120,6 +120,30 @@ public class GunHelper {
         }
     }
 
+    /** Can the magazine be refilled from Niko's bag right now (is there matching ammo)? null if unknown. */
+    public static Boolean canReload(EntityNiko n, ItemStack g) {
+        init();
+        if (!ok) return null;
+        try {
+            Object cfg = getConfig.invoke(g.getItem(), g, 0);
+            if (cfg == null) return null;
+            Method gr = cfg.getClass().getMethod("getReceivers", ItemStack.class);
+            gr.setAccessible(true);
+            Object[] rec = (Object[]) gr.invoke(cfg, g);
+            if (rec == null || rec.length == 0) return null;
+            Method gm = rec[0].getClass().getMethod("getMagazine", ItemStack.class);
+            gm.setAccessible(true);
+            Object mag = gm.invoke(rec[0], g);
+            if (mag == null) return null;
+            Method cr = magClass.getMethod("canReload", ItemStack.class, IInventory.class);
+            cr.setAccessible(true);
+            return (Boolean) cr.invoke(mag, g, n.inv);
+        } catch (Throwable t) {
+            err("canReload", t);
+            return null;
+        }
+    }
+
     private static void err(String where, Throwable t) {
         Throwable c = t.getCause() != null ? t.getCause() : t;
         String msg = where + ": " + c;

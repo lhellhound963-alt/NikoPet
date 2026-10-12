@@ -48,6 +48,7 @@ public class EntityNiko extends EntityTameable {
     public int lastTargetId = -1;
     /** True while retreating to the owner (no attacking). */
     public boolean fleeing;
+    public int lastHurtTick = -10000;
     /** True when the held gun is empty and cannot be reloaded: she switches to close combat. */
     public boolean gunDry;
     private int lastEat = -1000;
@@ -63,7 +64,7 @@ public class EntityNiko extends EntityTameable {
         tasks.addTask(1, new EntityAIPatrol(this));
         tasks.addTask(1, new EntityAIRodSwap(this));
         tasks.addTask(0, new EntityAIFleeToOwner(this));
-        tasks.addTask(0, new EntityAINikoMelee(this));
+        tasks.addTask(1, new EntityAINikoMelee(this)); // priority 1: the retreat (0) must be able to interrupt a fight
         tasks.addTask(1, new EntityAIShootGun(this));
         targetTasks.addTask(2, new EntityAIHurtByTarget(this, true) {
             @Override
@@ -326,7 +327,7 @@ public class EntityNiko extends EntityTameable {
         String gun;
         if (!GunHelper.bridgeOk()) gun = "HBM bridge FAILED";
         else if (!GunHelper.isGun(hand)) gun = "no HBM gun in hand";
-        else gun = "gun ready, loaded rounds " + GunHelper.ammo(this, hand);
+        else gun = "gun ready, loaded rounds " + GunHelper.ammo(this, hand) + "/" + GunHelper.capacity(this, hand) + ", ammo in bag: " + GunHelper.canReload(this, hand);
         EntityLivingBase tg = getAttackTarget();
         p.addChatMessage(new ChatComponentText("<Niko> Gun: " + gun + " | target: "
                 + (tg == null ? "none" : tg.getCommandSenderName()) + " | sitting: " + isSitting()
@@ -415,6 +416,13 @@ public class EntityNiko extends EntityTameable {
             }
         }
         return s.stackSize > 0 ? s : null;
+    }
+
+    @Override
+    public boolean attackEntityFrom(net.minecraft.util.DamageSource src, float amount) {
+        boolean r = super.attackEntityFrom(src, amount);
+        if (r && !worldObj.isRemote) lastHurtTick = ticksExisted;
+        return r;
     }
 
     @Override

@@ -67,7 +67,10 @@ public class EntityAIShootGun extends EntityAIBase {
         if (mode == 0 && !see && amt > 0 && cap > 0 && amt < cap && n.ticksExisted > noReloadUntil) { mode = 2; reloadTicks = 0; }
 
         if (mode == 2) {
-            GunHelper.setKeys(n, g, false, true);
+            // The gun only starts a reload on a fresh key press and ignores it while it is still cycling after the
+            // last shot. Holding the key therefore reloads once and then never again: pulse it (3 ticks down, 5 up).
+            GunHelper.setKeys(n, g, false, (reloadTicks % 8) < 3);
+            if (reloadTicks == 40 && amt == 0 && Boolean.FALSE.equals(GunHelper.canReload(n, g))) reloadTicks = 301; // no ammo in the bag
             if (++reloadTicks > 300) {
                 if (amt > 0) { mode = 0; timer = 6; noReloadUntil = n.ticksExisted + 600; } // cannot top up: fire what is loaded
                 else {

@@ -16,8 +16,10 @@ public class EntityAIFleeToOwner extends EntityAIBase {
         setMutexBits(3);
     }
 
-    private int hostiles() {
-        List l = n.worldObj.getEntitiesWithinAABB(EntityMob.class, n.boundingBox.expand(8.0D, 3.0D, 8.0D));
+    private int hostiles() { return hostiles(8.0D); }
+
+    private int hostiles(double r) {
+        List l = n.worldObj.getEntitiesWithinAABB(EntityMob.class, n.boundingBox.expand(r, 4.0D, r));
         int c = 0;
         for (Object o : l) if (((EntityMob) o).isEntityAlive()) c++;
         return c;
@@ -32,14 +34,17 @@ public class EntityAIFleeToOwner extends EntityAIBase {
         if (owner == null || !owner.isEntityAlive()) return false;
         float f = frac();
         if (f >= 0.7F) return false;
-        int mobs = hostiles();
-        return mobs > 0 && (f < 0.4F || mobs >= 4);
+        if (n.getDistanceSqToEntity(owner) < 36.0D && hostiles() == 0) return false; // already safe next to the owner
+        if (f < 0.4F) return hostiles(16.0D) > 0 || n.ticksExisted - n.lastHurtTick < 200; // hurt badly: go back to the owner
+        return hostiles() >= 4;
     }
 
     @Override
     public boolean continueExecuting() {
         owner = n.getOwner();
-        return owner != null && owner.isEntityAlive() && !n.isSitting() && frac() < 0.6F && hostiles() > 0;
+        if (owner == null || !owner.isEntityAlive() || n.isSitting() || frac() >= 0.6F) return false;
+        if (n.getDistanceSqToEntity(owner) < 9.0D) return hostiles(16.0D) > 0 && n.ticksExisted - n.lastHurtTick < 200;
+        return true; // keep running until she reaches the owner
     }
 
     @Override
@@ -49,7 +54,7 @@ public class EntityAIFleeToOwner extends EntityAIBase {
         n.setAttackTarget(null);
         if (n.ticksExisted - lastTell >= 600) {
             lastTell = n.ticksExisted;
-            n.tell("Monsters are swarming me! HP " + (int) n.getHealth() + "/" + (int) n.getMaxHealth() + ". Running to you, please help!");
+            n.tell("I'm hurt! HP " + (int) n.getHealth() + "/" + (int) n.getMaxHealth() + ". Running to you, please help!");
         }
     }
 
