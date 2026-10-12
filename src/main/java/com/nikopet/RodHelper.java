@@ -4,6 +4,7 @@ import cpw.mods.fml.common.FMLLog;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -72,6 +73,32 @@ public class RodHelper {
         return null;
     }
 
+    /** HBM Spent Fuel Pool Drum: a plain 12-slot inventory (not an IRBMKLoadable). */
+    public static boolean isDrum(TileEntity te) {
+        return te instanceof IInventory && te.getClass().getSimpleName().contains("WasteDrum");
+    }
+
+    /** Spent fuel pool at/near the clicked block: Spent Fuel Pool Drum, or an RBMK Storage Column. */
+    public static TileEntity findPool(World w, int x, int y, int z) {
+        init();
+        int[] dys = { 0, -1, 1, -2 };
+        for (int i = 0; i < dys.length; i++) {
+            TileEntity te = w.getTileEntity(x, y + dys[i], z);
+            if (te == null) continue;
+            if (isDrum(te)) return te;
+            if (ok && loadC.isInstance(te) && isStorage(te)) return te;
+        }
+        return null;
+    }
+
+    private static int drumSlot(TileEntity pool, ItemStack s) {
+        IInventory inv = (IInventory) pool;
+        for (int i = 0; i < inv.getSizeInventory(); i++) {
+            if (inv.getStackInSlot(i) == null && inv.isItemValidForSlot(i, s)) return i;
+        }
+        return -1;
+    }
+
     public static boolean isStorage(TileEntity te) { return te != null && te.getClass().getSimpleName().contains("Storage"); }
 
     public static boolean isRodColumn(TileEntity te) { return te != null && !isStorage(te) && te.getClass().getSimpleName().contains("Rod"); }
@@ -108,10 +135,20 @@ public class RodHelper {
 
     /** Can the storage pool at this tile accept the stack right now? */
     public static boolean poolAccepts(TileEntity pool, ItemStack s) {
+        if (isDrum(pool)) return drumSlot(pool, s) >= 0;
         try { return can(canLoad, pool, s); } catch (Throwable t) { lastError = "canLoad: " + t; return false; }
     }
 
     public static boolean poolLoad(TileEntity pool, ItemStack s) {
+        if (isDrum(pool)) {
+            int slot = drumSlot(pool, s);
+            if (slot < 0) return false;
+            ItemStack one = s.copy();
+            one.stackSize = 1;
+            ((IInventory) pool).setInventorySlotContents(slot, one);
+            pool.markDirty();
+            return true;
+        }
         try {
             if (!can(canLoad, pool, s)) return false;
             load.invoke(pool, s);

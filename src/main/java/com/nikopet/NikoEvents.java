@@ -35,15 +35,13 @@ public class NikoEvents {
             e.setCanceled(true);
             return;
         }
-        net.minecraft.tileentity.TileEntity te = RodHelper.findLoadable(e.world, e.x, e.y, e.z);
+        net.minecraft.tileentity.TileEntity te = pool ? RodHelper.findPool(e.world, e.x, e.y, e.z) : RodHelper.findLoadable(e.world, e.x, e.y, e.z);
         if (te == null) {
-            p.addChatMessage(new ChatComponentText("<Niko> That is not an RBMK column or storage."));
+            p.addChatMessage(new ChatComponentText(pool ? "<Niko> That is not a Spent Fuel Pool Drum or RBMK storage column."
+                    : "<Niko> That is not an RBMK fuel rod column."));
         } else if (pool) {
-            if (!RodHelper.isStorage(te)) p.addChatMessage(new ChatComponentText("<Niko> That is not a storage column."));
-            else {
-                n.pool = new int[] { te.xCoord, te.yCoord, te.zCoord };
-                p.addChatMessage(new ChatComponentText("<Niko> Storage pool saved."));
-            }
+            n.pool = new int[] { te.xCoord, te.yCoord, te.zCoord };
+            p.addChatMessage(new ChatComponentText("<Niko> Storage pool saved" + (RodHelper.isDrum(te) ? " (Spent Fuel Pool Drum)." : ".")));
         } else if (RodHelper.isStorage(te) || !RodHelper.isRodColumn(te)) {
             p.addChatMessage(new ChatComponentText("<Niko> That is not a fuel rod column."));
         } else if (n.cols.size() >= 8) {

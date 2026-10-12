@@ -54,7 +54,7 @@ public class EntityAIRodSwap extends EntityAIBase {
             if (timer > 600) { n.abortSwap("could not reach column " + (n.swapIdx + 1) + "."); return; }
             if (!near(col)) { walk(col); return; }
             TileEntity ct = RodHelper.findLoadable(n.worldObj, col[0], col[1], col[2]);
-            TileEntity pt = RodHelper.findLoadable(n.worldObj, n.pool[0], n.pool[1], n.pool[2]);
+            TileEntity pt = RodHelper.findPool(n.worldObj, n.pool[0], n.pool[1], n.pool[2]);
             if (ct == null) { skip("no RBMK column at the marked block."); return; }
             if (pt == null) { n.abortSwap("storage pool not found at the marked block."); return; }
             int slot = n.findRodSlot();
@@ -74,7 +74,7 @@ public class EntityAIRodSwap extends EntityAIBase {
             if (n.carrying == null) { stage = 0; timer = 0; return; }
             if (timer > 600) { n.abortSwap("could not reach the pool. I'm still holding the old rod."); return; }
             if (!near(n.pool)) { walk(n.pool); return; }
-            TileEntity pt = RodHelper.findLoadable(n.worldObj, n.pool[0], n.pool[1], n.pool[2]);
+            TileEntity pt = RodHelper.findPool(n.worldObj, n.pool[0], n.pool[1], n.pool[2]);
             if (pt != null && RodHelper.poolLoad(pt, n.carrying)) {
                 n.carrying = null;
                 n.cols.remove(n.swapIdx); // done: this column mark is consumed
