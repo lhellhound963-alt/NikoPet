@@ -79,7 +79,8 @@ public class CraneHelper {
     public static String describe(World w, int x, int z) {
         if (!ready()) return "crane bridge unavailable";
         TileEntity c = find(w, x, z, 128);
-        return c == null ? "no set-up crane console within 128 blocks" : "crane console at " + c.xCoord + "," + c.yCoord + "," + c.zCoord;
+        return c == null ? "no set-up crane console within 128 blocks"
+                : "crane console at " + c.xCoord + "," + c.yCoord + "," + c.zCoord + " (" + state(c) + ")";
     }
 
     /** One tick of movement toward the block column at world x,z. Returns true once the crane is over it. */
@@ -123,8 +124,12 @@ public class CraneHelper {
         }
     }
 
+    /** True only for a real stack on the hook (an empty / broken stack object does not count). */
     public static boolean hasItem(TileEntity te) {
-        try { return loadedItem.get(te) != null; } catch (Throwable t) { return false; }
+        try {
+            ItemStack s = (ItemStack) loadedItem.get(te);
+            return s != null && s.getItem() != null && s.stackSize > 0;
+        } catch (Throwable t) { return false; }
     }
 
     public static ItemStack takeLoaded(TileEntity te) {
