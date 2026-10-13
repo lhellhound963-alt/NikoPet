@@ -161,6 +161,48 @@ public class RodHelper {
      * Take the old rod out of the column and put a fresh one in. Refuses (returns an error text, nothing changed)
      * if anything is unsafe. On success returns null and result[0] holds the removed rod.
      */
+    /** Same safety checks as swapAtColumn, but changes nothing. Returns an error text or null if it is OK to go ahead. */
+    public static String preflight(TileEntity col, TileEntity pool, ItemStack fresh) {
+        init();
+        if (!ok) return "rod bridge unavailable: " + lastError;
+        try {
+            if (!((Boolean) canUnload.invoke(col)).booleanValue()) return "this column has no rod I can take out";
+            ItemStack old = (ItemStack) provideNext.invoke(col);
+            if (old == null) return "this column has no rod I can take out";
+            double ch = columnHeat(col);
+            double rh = rodHeat(old);
+            if (ch > MAX_TOUCH_HEAT || rh > MAX_TOUCH_HEAT) {
+                double mh = 0.0D;
+                try { if (colMax != null) mh = ((Number) colMax.invoke(col)).doubleValue(); } catch (Throwable t) { mh = 0.0D; }
+                if (mh <= 0.0D || ch > mh * HOT_COLUMN_LIMIT)
+                    return "column too hot to touch (" + Math.round(ch) + " C" + (mh > 0 ? ", " + Math.round(ch / mh * 100.0D) + "% of max" : "") + "), let it cool first";
+                RbmkHelper.Result rr = RbmkHelper.scan(col.getWorldObj(), col.xCoord, col.yCoord, col.zCoord, 32, 24, 32);
+                if (rr == null || rr.allControls == 0) return "rod is hot (" + Math.round(rh) + " C) and I cannot see all the control rods to confirm the reactor is shut down";
+                if (rr.maxCtrlLevel > SCRAM_LEVEL) return "rod is hot (" + Math.round(rh) + " C): at least one control rod is still out (" + Math.round(rr.maxCtrlLevel * 100.0D) + "%), insert all control rods first (AZ-5)";
+            }
+            if (!poolAccepts(pool, old)) return "storage pool has no room for this rod";
+            return null;
+        } catch (Throwable t) {
+            Throwable c = t.getCause() != null ? t.getCause() : t;
+            lastError = "preflight: " + c;
+            return "internal error: " + c;
+        }
+    }
+
+    /** Would this (now empty) column accept that fresh rod? */
+    public static boolean canLoadInto(TileEntity col, ItemStack fresh) {
+        init();
+        if (!ok) return false;
+        try {
+            ItemStack one = fresh.copy();
+            one.stackSize = 1;
+            return can(canLoad, col, one);
+        } catch (Throwable t) {
+            lastError = "canLoadInto: " + t;
+            return false;
+        }
+    }
+
     public static String swapAtColumn(TileEntity col, TileEntity pool, ItemStack fresh, ItemStack[] result) {
         init();
         if (!ok) return "rod bridge unavailable: " + lastError;

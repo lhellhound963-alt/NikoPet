@@ -12,6 +12,8 @@ public class EntityAIRodSwap extends EntityAIBase {
     private static final int[][] OFFS = { { 0, 0 }, { 2, 0 }, { -2, 0 }, { 0, 2 }, { 0, -2 }, { 3, 3 }, { -3, -3 } };
     private final EntityNiko n;
     private int stage, timer, fails; // 0 -> column, 2 -> pool
+    private int cstage, ctimer; // crane mode: 0 check, 1 move, 2 take old rod, 3 insert fresh rod, 9 put old rod back
+    private String revert;
 
     public EntityAIRodSwap(EntityNiko n) {
         this.n = n;
@@ -30,6 +32,8 @@ public class EntityAIRodSwap extends EntityAIBase {
         timer = 0;
         fails = 0;
         n.task = "changing fuel rods";
+        cstage = 0;
+        ctimer = 0;
     }
 
     private boolean near(int[] p) {
@@ -57,6 +61,8 @@ public class EntityAIRodSwap extends EntityAIBase {
             TileEntity pt = RodHelper.findPool(n.worldObj, n.pool[0], n.pool[1], n.pool[2]);
             if (ct == null) { skip("no RBMK column at the marked block."); return; }
             if (pt == null) { n.abortSwap("storage pool not found at the marked block."); return; }
+            TileEntity crane = n.useCrane ? CraneHelper.find(n.worldObj, col[0], col[2], 96) : null;
+            if (crane != null) { craneStep(col, ct, pt, crane); return; }
             int slot = n.findRodSlot();
             if (slot < 0) { n.abortSwap("no fresh fuel rod in my bag."); return; }
             ItemStack[] res = new ItemStack[1];
@@ -85,6 +91,82 @@ public class EntityAIRodSwap extends EntityAIBase {
             } else {
                 n.abortSwap("pool refused the old rod. I'm still holding it.");
             }
+        }
+    }
+
+    /** Take one fresh rod out of the bag (stack of 1) or null. */
+    private ItemStack takeFresh() {
+        int slot = n.findRodSlot();
+        if (slot < 0) return null;
+        ItemStack f = n.inv.getStackInSlot(slot);
+        ItemStack one = f.copy();
+        one.stackSize = 1;
+        f.stackSize--;
+        if (f.stackSize <= 0) n.inv.setInventorySlotContents(slot, null);
+        return one;
+    }
+
+    private void startRevert(TileEntity crane, String why) {
+        revert = why;
+        if (n.carrying != null) {
+            CraneHelper.give(crane, n.carrying);
+            n.carrying = null;
+            CraneHelper.startCycle(crane);
+            cstage = 9;
+            ctimer = 0;
+        } else {
+            n.abortSwap(why);
+        }
+    }
+
+    /** Fuel change through the RBMK Crane Console: the crane moves over the column, lifts the old rod out and drops the fresh one in. */
+    private void craneStep(int[] col, TileEntity ct, TileEntity pt, TileEntity crane) {
+        ctimer++;
+        if (cstage == 0) {
+            int slot = n.findRodSlot();
+            if (slot < 0) { n.abortSwap("no fresh fuel rod in my bag."); return; }
+            String err = RodHelper.preflight(ct, pt, n.inv.getStackInSlot(slot));
+            if (err != null) { n.abortSwap("column " + label() + ": " + err + ". Nothing changed."); return; }
+            if (CraneHelper.busy(crane) || CraneHelper.hasItem(crane)) { n.abortSwap("the crane is busy or already holding something. Empty it first."); return; }
+            n.tell("Using the crane at " + crane.xCoord + "," + crane.yCoord + "," + crane.zCoord + ".");
+            cstage = 1;
+            ctimer = 0;
+        } else if (cstage == 1) {
+            if (CraneHelper.moveToward(crane, col[0], col[2])) {
+                CraneHelper.startCycle(crane); // lowers over the column; with an empty hook it lifts the old rod out
+                cstage = 2;
+                ctimer = 0;
+            } else if (ctimer > 1500) n.abortSwap("the crane could not get over column " + label() + " (" + CraneHelper.lastError + "). Nothing changed.");
+        } else if (cstage == 2) {
+            if (CraneHelper.busy(crane)) { if (ctimer > 800) n.abortSwap("the crane is stuck. Nothing was taken out that I know of."); return; }
+            ItemStack old = CraneHelper.takeLoaded(crane);
+            if (old == null) { n.abortSwap("the crane did not lift a rod out of column " + label() + ". Nothing changed."); return; }
+            n.carrying = old;
+            int fs = n.findRodSlot();
+            ItemStack fresh = (fs >= 0 && RodHelper.canLoadInto(ct, n.inv.getStackInSlot(fs))) ? takeFresh() : null;
+            if (fresh == null) { startRevert(crane, "the column would not take the new rod, old rod is being put back."); return; }
+            CraneHelper.give(crane, fresh);
+            CraneHelper.startCycle(crane); // with a rod on the hook it lowers it into the column
+            cstage = 3;
+            ctimer = 0;
+        } else if (cstage == 3) {
+            if (CraneHelper.busy(crane)) { if (ctimer > 800) n.abortSwap("the crane is stuck while inserting the new rod. I'm holding the old rod."); return; }
+            if (CraneHelper.hasItem(crane)) { // column refused: take the new rod back and restore the old one
+                ItemStack back = CraneHelper.takeLoaded(crane);
+                if (back != null) n.addToInventory(back);
+                startRevert(crane, "the column refused the new rod, old rod is being put back.");
+                return;
+            }
+            n.tell("Column " + label() + ": new rod in (by crane). Taking the old one to the pool.");
+            cstage = 0;
+            stage = 2;
+            timer = 0;
+            fails = 0;
+        } else if (cstage == 9) {
+            if (CraneHelper.busy(crane)) { if (ctimer > 800) n.abortSwap("the crane is stuck while putting the old rod back."); return; }
+            ItemStack left = CraneHelper.hasItem(crane) ? CraneHelper.takeLoaded(crane) : null;
+            if (left != null) n.carrying = left; // still on the hook: keep it, abortSwap warns about it
+            n.abortSwap(revert == null ? "crane change failed." : revert);
         }
     }
 

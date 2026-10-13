@@ -40,6 +40,7 @@ public class EntityNiko extends EntityTameable {
     public int[] pool;
     public final List<int[]> cols = new ArrayList<int[]>();
     public boolean swapping;
+    public boolean useCrane = true;
     public int swapIdx;
     public ItemStack carrying;
     private int lx, ly, lz;
@@ -261,6 +262,13 @@ public class EntityNiko extends EntityTameable {
                 }
                 return true;
             }
+            if (s != null && s.getItem() == Items.blaze_rod && p.isSneaking()) {
+                if (!worldObj.isRemote) {
+                    useCrane = !useCrane;
+                    tell("Crane mode " + (useCrane ? "ON (uses the RBMK crane console if one is set up)." : "OFF (I will swap rods by hand)."));
+                }
+                return true;
+            }
             if (s != null && s.getItem() == Items.blaze_rod && !p.isSneaking()) {
                 if (!worldObj.isRemote) {
                     if (swapping) abortSwap("cancelled by you."); else startSwap(p);
@@ -341,6 +349,7 @@ public class EntityNiko extends EntityTameable {
         p.addChatMessage(new ChatComponentText("<Niko> Rod change: pool " + (pool == null ? "not set" : pool[0] + "," + pool[1] + "," + pool[2])
                 + " | columns marked " + cols.size() + " | " + (swapping ? "working" : "idle")
                 + " | holding old rod: " + (carrying != null) + " | last rod error: " + RodHelper.lastError));
+        p.addChatMessage(new ChatComponentText("<Niko> Crane: mode " + (useCrane ? "on" : "off") + " | " + CraneHelper.describe(worldObj, (int) posX, (int) posZ) + " | last crane error: " + CraneHelper.lastError));
     }
 
     private boolean holdsLight() {
@@ -481,6 +490,7 @@ public class EntityNiko extends EntityTameable {
         for (int[] p : points) pl.appendTag(new NBTTagIntArray(p));
         t.setTag("NikoPoints", pl);
         if (pool != null) t.setIntArray("NikoPool", pool);
+        t.setBoolean("NikoCrane", useCrane);
         NBTTagList cl = new NBTTagList();
         for (int[] c : cols) cl.appendTag(new NBTTagIntArray(c));
         t.setTag("NikoCols", cl);
@@ -506,6 +516,7 @@ public class EntityNiko extends EntityTameable {
         points.clear();
         for (int i = 0; i < pl.tagCount(); i++) points.add(pl.func_150306_c(i));
         pool = t.hasKey("NikoPool") ? t.getIntArray("NikoPool") : null;
+        useCrane = !t.hasKey("NikoCrane") || t.getBoolean("NikoCrane");
         if (pool != null && pool.length != 3) pool = null;
         NBTTagList cl = t.getTagList("NikoCols", 11);
         cols.clear();
