@@ -36,7 +36,7 @@ public class EntityAIPatrol extends EntityAIBase {
                 boolean started = n.getNavigator().tryMoveToXYZ(tx + o[0], p[1], tz + o[1], 1.1D);
                 if (!started) fails++; // no path to this spot: try a different approach point next time
             }
-            if (reached || timer > 600) {
+            if (reached || timer > 600 || fails >= OFFS.length) {
                 n.inspectInto(p, reached, fails >= OFFS.length ? "no walkable path" : "timeout");
                 n.patrolIndex++;
                 timer = 0;

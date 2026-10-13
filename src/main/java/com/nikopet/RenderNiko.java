@@ -41,8 +41,10 @@ public class RenderNiko extends RenderBiped {
     protected void rotateCorpse(EntityLivingBase e, float a, float b, float c) {
         super.rotateCorpse(e, a, b, c);
         if (e instanceof EntityNiko && ((EntityNiko) e).isNikoSleeping()) {
-            GL11.glTranslatef(0.0F, 0.3F, 0.0F);
+            // same transform vanilla uses for a sleeping player: fall over, then turn so the face points up (on her back)
+            GL11.glTranslatef(0.0F, 0.15F, 0.0F);
             GL11.glRotatef(90.0F, 0.0F, 0.0F, 1.0F);
+            GL11.glRotatef(270.0F, 0.0F, 1.0F, 0.0F);
         }
     }
 }

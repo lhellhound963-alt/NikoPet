@@ -113,6 +113,16 @@ public class CraneHelper {
         try { return goesDown.getBoolean(te) || progress.getDouble(te) > 0.0D; } catch (Throwable t) { return false; }
     }
 
+    public static String state(TileEntity te) {
+        try {
+            ItemStack s = (ItemStack) loadedItem.get(te);
+            return "goesDown=" + goesDown.getBoolean(te) + ", progress=" + Math.round(progress.getDouble(te) * 100.0D) / 100.0D
+                    + ", holding=" + (s == null ? "nothing" : s.getDisplayName());
+        } catch (Throwable t) {
+            return "state unreadable";
+        }
+    }
+
     public static boolean hasItem(TileEntity te) {
         try { return loadedItem.get(te) != null; } catch (Throwable t) { return false; }
     }

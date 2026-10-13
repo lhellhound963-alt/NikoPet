@@ -55,9 +55,17 @@ public class EntityAISleepInBed extends EntityAIBase {
             if (timer % 20 == 1) n.getNavigator().tryMoveToXYZ(bx, bed[1], bz, 1.0D);
         } else {
             n.getNavigator().clearPathEntity();
-            n.setPosition(bx, by, bz);
+            // lie along the bed: head toward the pillow, body centered on the two bed blocks
+            int meta = n.worldObj.getBlockMetadata(bed[0], bed[1], bed[2]);
+            int[][] head = { { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 0 } }; // foot -> head offset per bed direction (x, z)
+            int hx = head[meta & 3][0], hz = head[meta & 3][1];
+            int fx = (meta & 8) != 0 ? bed[0] - hx : bed[0], fz = (meta & 8) != 0 ? bed[2] - hz : bed[2]; // foot block
+            double cx = fx + 0.5D + 0.5D * hx, cz = fz + 0.5D + 0.5D * hz;                                  // middle of the bed
+            float yaw = 180.0F - (float) Math.toDegrees(Math.atan2(hz, -hx));
+            n.setPosition(cx - 0.9D * hx, by, cz - 0.9D * hz);
             n.motionX = n.motionY = n.motionZ = 0.0D;
-            n.rotationYaw = n.renderYawOffset = n.rotationYawHead = 0.0F;
+            n.rotationYaw = n.renderYawOffset = n.rotationYawHead = yaw;
+            n.prevRotationYaw = n.prevRenderYawOffset = n.prevRotationYawHead = yaw;
             n.setNikoSleeping(true);
             n.task = "sleeping";
             timer = Math.min(timer, 1000);

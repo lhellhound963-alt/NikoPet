@@ -55,13 +55,14 @@ public class EntityAIRodSwap extends EntityAIBase {
         if (stage == 0) {
             if (n.swapIdx >= n.cols.size()) { n.finishSwap(); return; }
             int[] col = n.cols.get(n.swapIdx);
-            if (timer > 600) { n.abortSwap("could not reach column " + label() + "."); return; }
-            if (!near(col)) { walk(col); return; }
+            TileEntity crane = n.useCrane ? CraneHelper.find(n.worldObj, col[0], col[2], 96) : null;
+            int[] spot = crane != null ? new int[] { crane.xCoord, crane.yCoord, crane.zCoord } : col; // operator stands at the crane console
+            if (timer > 600) { n.abortSwap("could not reach " + (crane != null ? "the crane console." : "column " + label() + ".")); return; }
+            if (!near(spot)) { walk(spot); return; }
             TileEntity ct = RodHelper.findLoadable(n.worldObj, col[0], col[1], col[2]);
             TileEntity pt = RodHelper.findPool(n.worldObj, n.pool[0], n.pool[1], n.pool[2]);
             if (ct == null) { skip("no RBMK column at the marked block."); return; }
             if (pt == null) { n.abortSwap("storage pool not found at the marked block."); return; }
-            TileEntity crane = n.useCrane ? CraneHelper.find(n.worldObj, col[0], col[2], 96) : null;
             if (crane != null) { craneStep(col, ct, pt, crane); return; }
             int slot = n.findRodSlot();
             if (slot < 0) { n.abortSwap("no fresh fuel rod in my bag."); return; }
@@ -127,7 +128,7 @@ public class EntityAIRodSwap extends EntityAIBase {
             if (slot < 0) { n.abortSwap("no fresh fuel rod in my bag."); return; }
             String err = RodHelper.preflight(ct, pt, n.inv.getStackInSlot(slot));
             if (err != null) { n.abortSwap("column " + label() + ": " + err + ". Nothing changed."); return; }
-            if (CraneHelper.busy(crane) || CraneHelper.hasItem(crane)) { n.abortSwap("the crane is busy or already holding something. Empty it first."); return; }
+            if (CraneHelper.busy(crane) || CraneHelper.hasItem(crane)) { n.abortSwap("the crane is busy or holding something (" + CraneHelper.state(crane) + "). Empty it first."); return; }
             n.tell("Using the crane at " + crane.xCoord + "," + crane.yCoord + "," + crane.zCoord + ".");
             cstage = 1;
             ctimer = 0;

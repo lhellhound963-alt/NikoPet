@@ -212,6 +212,7 @@ public class EntityNiko extends EntityTameable {
             getAttributeMap().registerAttribute(SharedMonsterAttributes.attackDamage);
         getEntityAttribute(SharedMonsterAttributes.attackDamage).setBaseValue(3.0D);
         getEntityAttribute(SharedMonsterAttributes.movementSpeed).setBaseValue(0.3D);
+        getEntityAttribute(SharedMonsterAttributes.followRange).setBaseValue(64.0D);
     }
 
     @Override
