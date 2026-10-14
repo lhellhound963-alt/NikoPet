@@ -111,7 +111,8 @@ public class CraneHelper {
     }
 
     public static boolean busy(TileEntity te) {
-        try { return goesDown.getBoolean(te) || progress.getDouble(te) > 0.0D; } catch (Throwable t) { return false; }
+        // progress 1.0 = hook raised (idle); it counts down to 0 while lowering, then back up to 1.0
+        try { return goesDown.getBoolean(te) || progress.getDouble(te) < 0.999D; } catch (Throwable t) { return false; }
     }
 
     public static String state(TileEntity te) {
