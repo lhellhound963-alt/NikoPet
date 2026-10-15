@@ -162,7 +162,12 @@ public class RodHelper {
      * if anything is unsafe. On success returns null and result[0] holds the removed rod.
      */
     /** Same safety checks as swapAtColumn, but changes nothing. Returns an error text or null if it is OK to go ahead. */
-    public static String preflight(TileEntity col, TileEntity pool, ItemStack fresh) {
+    public static final double ONLINE_ROD_LIMIT = 900.0D;      // HBM's autoloader itself refuses rods at 1000 C hull heat
+    public static final double ONLINE_REACTOR_LIMIT = 0.70D;   // refuel online only while the hottest column is below this share of its max
+
+    public static String preflight(TileEntity col, TileEntity pool, ItemStack fresh) { return preflight(col, pool, fresh, false); }
+
+    public static String preflight(TileEntity col, TileEntity pool, ItemStack fresh, boolean online) {
         init();
         if (!ok) return "rod bridge unavailable: " + lastError;
         try {
@@ -171,7 +176,12 @@ public class RodHelper {
             if (old == null) return "this column has no rod I can take out";
             double ch = columnHeat(col);
             double rh = rodHeat(old);
-            if (ch > MAX_TOUCH_HEAT || rh > MAX_TOUCH_HEAT) {
+            if (online) {
+                if (rh >= ONLINE_ROD_LIMIT) return "rod is too hot even for the crane (" + Math.round(rh) + " C)";
+                RbmkHelper.Result rr0 = RbmkHelper.scan(col.getWorldObj(), col.xCoord, col.yCoord, col.zCoord, 32, 24, 32);
+                if (rr0 == null || rr0.columns == 0) return "I cannot read the reactor state, so no online refuelling";
+                if (rr0.worstRatio > ONLINE_REACTOR_LIMIT) return "reactor too hot to refuel while running (" + Math.round(rr0.worstRatio * 100.0D) + "% of max, limit " + Math.round(ONLINE_REACTOR_LIMIT * 100.0D) + "%)";
+            } else if (ch > MAX_TOUCH_HEAT || rh > MAX_TOUCH_HEAT) {
                 double mh = 0.0D;
                 try { if (colMax != null) mh = ((Number) colMax.invoke(col)).doubleValue(); } catch (Throwable t) { mh = 0.0D; }
                 if (mh <= 0.0D || ch > mh * HOT_COLUMN_LIMIT)

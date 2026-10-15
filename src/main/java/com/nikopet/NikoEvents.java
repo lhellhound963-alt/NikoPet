@@ -20,6 +20,25 @@ public class NikoEvents {
     }
 
     /** Feather + right-click = storage pool, flint + right-click = RBMK column to change (sneak = clear). */
+    /** Bone + right-click a chest / crate = where Niko fetches fresh fuel rods (sneak = clear). */
+    private void markSupply(PlayerInteractEvent e, EntityPlayer p) {
+        EntityNiko n = nearestOwned(e, p);
+        if (n == null) return;
+        if (p.isSneaking()) {
+            n.supply = null;
+            p.addChatMessage(new ChatComponentText("<Niko> Supply box cleared."));
+        } else {
+            net.minecraft.tileentity.TileEntity te = e.world.getTileEntity(e.x, e.y, e.z);
+            if (te instanceof net.minecraft.inventory.IInventory) {
+                n.supply = new int[] { te.xCoord, te.yCoord, te.zCoord };
+                p.addChatMessage(new ChatComponentText("<Niko> Supply box saved. I will fetch fresh fuel rods from it."));
+            } else {
+                p.addChatMessage(new ChatComponentText("<Niko> That is not a chest or crate."));
+            }
+        }
+        e.setCanceled(true);
+    }
+
     private void markRodSpot(PlayerInteractEvent e, EntityPlayer p, ItemStack s) {
         EntityNiko n = nearestOwned(e, p);
         if (n == null) return;
@@ -64,6 +83,7 @@ public class NikoEvents {
         EntityPlayer p = e.entityPlayer;
         ItemStack s = p.getCurrentEquippedItem();
         if (s == null) return;
+        if (s.getItem() == Items.bone) { markSupply(e, p); return; }
         if (s.getItem() == Items.feather || s.getItem() == Items.flint) { markRodSpot(e, p, s); return; }
         if (s.getItem() != Items.paper) return;
         List l = e.world.getEntitiesWithinAABB(EntityNiko.class, p.boundingBox.expand(64.0D, 32.0D, 64.0D));

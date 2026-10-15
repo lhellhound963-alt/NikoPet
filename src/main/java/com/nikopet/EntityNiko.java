@@ -41,6 +41,8 @@ public class EntityNiko extends EntityTameable {
     public final List<int[]> cols = new ArrayList<int[]>();
     public boolean swapping;
     public boolean useCrane = true;
+    public int[] supply;           // chest / crate with fresh fuel rods
+    public boolean online;         // owner allowed refuelling while the reactor runs (never saved: off after every reload)
     public int swapIdx;
     public ItemStack carrying;
     private int lx, ly, lz;
@@ -149,11 +151,17 @@ public class EntityNiko extends EntityTameable {
             ItemStack s = inv.getStackInSlot(i);
             if (RodHelper.isRodStack(s)) rods += s.stackSize;
         }
-        if (rods < cols.size()) { tell("I only carry " + rods + " fresh rods for " + cols.size() + " columns."); return; }
+        if (rods < cols.size() && supply == null) { tell("I only carry " + rods + " fresh rods for " + cols.size() + " columns. Put more in my bag, or mark a supply box with a bone."); return; }
+        if (online && (!useCrane || CraneHelper.find(worldObj, (int) posX, (int) posZ, 128) == null)) {
+            tell("Online refuelling needs crane mode ON and a set-up crane console. Not starting.");
+            return;
+        }
         swapIdx = 0;
         swapping = true;
         aiSit.setSitting(false);
-        tell("Okay, changing " + cols.size() + " columns. Hot rods only if the control rods are fully in (AZ-5).");
+        tell("Okay, changing " + cols.size() + " columns. " + (online
+                ? "ONLINE mode: the reactor may be running, crane only, one column at a time, I stop if it gets too hot."
+                : "Hot rods only if the control rods are fully in (AZ-5)."));
     }
 
     public void finishSwap() {
@@ -253,6 +261,15 @@ public class EntityNiko extends EntityTameable {
                 if (!worldObj.isRemote) startPatrol(p);
                 return true;
             }
+            if (s != null && s.getItem() == Items.redstone && p.isSneaking()) {
+                if (!worldObj.isRemote) {
+                    online = !online;
+                    tell(online ? "ONLINE refuelling ENABLED for this session (crane only, reactor must stay under "
+                            + Math.round(RodHelper.ONLINE_REACTOR_LIMIT * 100.0D) + "% heat, I stop if it climbs). Sneak + redstone again to disable."
+                            : "Online refuelling disabled. I only change rods with the reactor shut down (AZ-5).");
+                }
+                return true;
+            }
             if (s != null && s.getItem() == Items.redstone && !p.isSneaking()) {
                 if (!worldObj.isRemote) {
                     int n = RbmkHelper.scram(worldObj, MathHelper.floor_double(posX), MathHelper.floor_double(posY),
@@ -349,7 +366,7 @@ public class EntityNiko extends EntityTameable {
         p.addChatMessage(new ChatComponentText("<Niko> Body: " + HbmReader.radiation(this) + " | " + RadiationShield.describe(this)));
         p.addChatMessage(new ChatComponentText("<Niko> Rod change: pool " + (pool == null ? "not set" : pool[0] + "," + pool[1] + "," + pool[2])
                 + " | columns marked " + cols.size() + " | " + (swapping ? "working" : "idle")
-                + " | holding old rod: " + (carrying != null) + " | last rod error: " + RodHelper.lastError));
+                + " | supply box: " + (supply == null ? "not set" : supply[0] + "," + supply[1] + "," + supply[2]) + " | online refuel: " + (online ? "ON" : "off") + " | holding old rod: " + (carrying != null) + " | last rod error: " + RodHelper.lastError));
         p.addChatMessage(new ChatComponentText("<Niko> Crane: mode " + (useCrane ? "on" : "off") + " | " + CraneHelper.describe(worldObj, (int) posX, (int) posZ) + " | last crane error: " + CraneHelper.lastError));
     }
 
@@ -491,6 +508,7 @@ public class EntityNiko extends EntityTameable {
         for (int[] p : points) pl.appendTag(new NBTTagIntArray(p));
         t.setTag("NikoPoints", pl);
         if (pool != null) t.setIntArray("NikoPool", pool);
+        if (supply != null) t.setIntArray("NikoSupply", supply);
         t.setBoolean("NikoCrane", useCrane);
         NBTTagList cl = new NBTTagList();
         for (int[] c : cols) cl.appendTag(new NBTTagIntArray(c));
@@ -517,6 +535,8 @@ public class EntityNiko extends EntityTameable {
         points.clear();
         for (int i = 0; i < pl.tagCount(); i++) points.add(pl.func_150306_c(i));
         pool = t.hasKey("NikoPool") ? t.getIntArray("NikoPool") : null;
+        supply = t.hasKey("NikoSupply") ? t.getIntArray("NikoSupply") : null;
+        if (supply != null && supply.length != 3) supply = null;
         useCrane = !t.hasKey("NikoCrane") || t.getBoolean("NikoCrane");
         if (pool != null && pool.length != 3) pool = null;
         NBTTagList cl = t.getTagList("NikoCols", 11);
